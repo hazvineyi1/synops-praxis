@@ -23,6 +23,7 @@ import { DiscussionThread } from '@/pages/DiscussionThread';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { CourseGradebook } from '@/pages/CourseGradebook';
 import { DevLogin } from '@/pages/DevLogin';
+import { ModuleViewer } from '@/pages/ModuleViewer';
 import { Assess } from '@/pages/Assess';
 import { Credentials } from '@/pages/Credentials';
 import { Verify } from '@/pages/Verify';
@@ -265,6 +266,7 @@ function ClerkProviderWithRoutes() {
           <ProtectedRoute path="/courses/:courseId/assignments/:assignmentId" component={AssignmentDetail} />
           <ProtectedRoute path="/courses/:courseId/discussions/:discussionId" component={DiscussionThread} />
           <ProtectedRoute path="/courses/:courseId/gradebook" component={CourseGradebook} />
+          <ProtectedRoute path="/courses/:courseId/modules/:moduleId" component={ModuleViewer} />
           <ProtectedRoute path="/courses/:courseId" component={CourseDetail} />
           <ProtectedRoute path="/courses" component={Courses} />
           <ProtectedRoute path="/notifications" component={NotificationsPage} />
