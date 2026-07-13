@@ -617,7 +617,7 @@ export function ModuleViewer() {
         )}>
 
           {/* Video lesson: prominent player before beat content */}
-          {lessonType === 'video' && (
+          {mode === 'video' && (
             <div className="px-6 pt-6 pb-2">
               {allBeats.some(b => b.videoUrl) ? (
                 <div className="aspect-video rounded-xl overflow-hidden bg-black shadow-lg border border-border">
@@ -645,7 +645,7 @@ export function ModuleViewer() {
           )}
 
           {/* Quiz: empty state if no quiz beats */}
-          {lessonType === 'quiz' && beats.length === 0 && (
+          {mode === 'quiz' && beats.length === 0 && (
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
               <HelpCircle className="h-10 w-10 opacity-30" />
               <p className="text-sm">No quiz questions added yet.</p>
@@ -670,7 +670,7 @@ export function ModuleViewer() {
             >
               {currentBeat ? (
                 <BeatRenderer beat={currentBeat} />
-              ) : lessonType !== 'quiz' ? (
+              ) : mode !== 'quiz' ? (
                 <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
                   No content available for this module yet.
                 </div>
