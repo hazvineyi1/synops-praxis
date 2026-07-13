@@ -68,8 +68,8 @@ export function Home() {
         <section className="py-24 bg-card border-t border-border">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
-              <h2 className="text-3xl md:text-4xl font-serif font-bold">The Architecture of Competence</h2>
-              <p className="text-muted-foreground text-lg">We replace passive video watching with active, guided reasoning.</p>
+              <h2 className="text-3xl md:text-4xl font-serif font-bold">Learning That Proves Itself</h2>
+              <p className="text-muted-foreground text-lg">Not just content consumed — understanding demonstrated, and credentials that mean something.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
