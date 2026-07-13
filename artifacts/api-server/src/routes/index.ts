@@ -14,6 +14,17 @@ import credentialsRouter from "./credentials";
 import coachRouter from "./coach";
 import analyticsRouter from "./analytics";
 import reportsRouter from "./reports";
+import enrolmentsRouter from "./enrolments";
+import discussionsRouter from "./discussions";
+import announcementsRouter from "./announcements";
+import assignmentsRouter from "./assignments";
+import gradebookRouter from "./gradebook";
+import calendarRouter from "./calendar";
+import pagesRouter from "./pages";
+import groupsRouter from "./groups";
+import notificationsRouter from "./notifications";
+import interactiveVideoRouter from "./interactive_video";
+import devRouter from "./dev";
 
 const router = Router();
 
@@ -32,5 +43,16 @@ router.use(credentialsRouter);
 router.use(coachRouter);
 router.use(analyticsRouter);
 router.use(reportsRouter);
+router.use(enrolmentsRouter);
+router.use(discussionsRouter);
+router.use(announcementsRouter);
+router.use(assignmentsRouter);
+router.use(gradebookRouter);
+router.use(calendarRouter);
+router.use(pagesRouter);
+router.use(groupsRouter);
+router.use(notificationsRouter);
+router.use(interactiveVideoRouter);
+router.use(devRouter);
 
 export default router;

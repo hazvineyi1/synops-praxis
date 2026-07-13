@@ -9,6 +9,7 @@ export const beatTypeEnum = pgEnum("beat_type", [
   "compare",
   "diagram",
   "close",
+  "video",
 ]);
 
 export const audioStatusEnum = pgEnum("audio_status", [
@@ -28,6 +29,8 @@ export const beatsTable = pgTable("beats", {
   bulletPoints: text("bullet_points").array().notNull().default([]),
   scenario: text("scenario"),
   visualData: jsonb("visual_data"),
+  videoUrl: text("video_url"),
+  videoDurationSeconds: integer("video_duration_seconds"),
   audioUrl: text("audio_url"),
   audioStatus: audioStatusEnum("audio_status").notNull().default("none"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

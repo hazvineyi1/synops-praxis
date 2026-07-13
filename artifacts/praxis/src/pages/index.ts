@@ -15,3 +15,7 @@ export { CoachSubmissions } from './CoachSubmissions';
 export { AdminPartners } from './AdminPartners';
 export { PartnerTheme } from './PartnerTheme';
 export { Reports } from './Reports';
+export { AssignmentDetail } from './AssignmentDetail';
+export { DiscussionThread } from './DiscussionThread';
+export { NotificationsPage } from './NotificationsPage';
+export { CourseGradebook } from './CourseGradebook';
