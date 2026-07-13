@@ -126,6 +126,42 @@ router.post("/organisations/:orgId/members", requireAuth, async (req, res) => {
   res.status(201).json(toUserResponse(member));
 });
 
+// PATCH /organisations/:orgId/members/:userId — change role
+router.patch("/organisations/:orgId/members/:userId", requireAuth, async (req, res) => {
+  const user = req.dbUser!;
+  if (!["super_admin", "partner_admin", "org_admin"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  const { role } = req.body;
+  const allowed = ["learner", "coach", "org_admin"];
+  if (!allowed.includes(role)) {
+    res.status(400).json({ error: "Invalid role" });
+    return;
+  }
+  const [updated] = await db
+    .update(usersTable)
+    .set({ role, updatedAt: new Date() })
+    .where(and(eq(usersTable.id, req.params.userId), eq(usersTable.organisationId, req.params.orgId)))
+    .returning();
+  if (!updated) { res.status(404).json({ error: "Member not found" }); return; }
+  res.json(toUserResponse(updated));
+});
+
+// DELETE /organisations/:orgId/members/:userId — remove from org
+router.delete("/organisations/:orgId/members/:userId", requireAuth, async (req, res) => {
+  const user = req.dbUser!;
+  if (!["super_admin", "partner_admin", "org_admin"].includes(user.role)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  await db
+    .update(usersTable)
+    .set({ organisationId: null, updatedAt: new Date() })
+    .where(and(eq(usersTable.id, req.params.userId), eq(usersTable.organisationId, req.params.orgId)));
+  res.status(204).send();
+});
+
 // GET /organisations/:orgId/stats
 router.get("/organisations/:orgId/stats", requireAuth, async (req, res) => {
   const { orgId } = req.params;

@@ -186,14 +186,41 @@ The `UNIQUE` constraint makes progress marking idempotent — safe to call on ev
 ### 3.1 Role Hierarchy and Data Scope
 
 ```
-super_admin         → sees all partners, all orgs, platform-level metrics
-  └─ partner_admin  → sees their org(s), their course catalog, Studio
-       └─ org_admin → sees their workforce enrolments, reports
+super_admin (platform owner)
+  │  • Provisions and removes partner tenants
+  │  • Configures white-label branding per partner (logo, colours, display name)
+  │  • Manages platform-level settings
+  │
+  └─ partner_admin
+       │  • Manages their organisations and course catalog
+       │  • Runs Studio (AI content authoring)
+       │  • Does NOT control branding (super_admin sets it at provisioning)
+       │
+       └─ org_admin
+            │  • Invites users into the organisation by email
+            │  • Assigns and changes roles (learner / coach / org_admin)
+            │  • Removes members
+            │  • Views workforce enrolments and reports
+            │
             └─ coach → sees their assigned learners, submissions, sessions
-                 └─ learner → sees only their own data
+                 └─ learner → self-enrols or is enrolled by org_admin
 ```
 
 Every API query MUST filter by `partnerId` / `orgId` derived from the authenticated user's role. No cross-tenant data leakage is acceptable.
+
+### 3.2 White-Label Architecture
+
+White-labelling is controlled **exclusively at the `super_admin` / platform level**, not by partner admins.
+
+**Flow:**
+1. `super_admin` provisions a partner tenant via `POST /partners` (name, slug, contact email)
+2. `super_admin` opens "Configure" on that partner row → sets display name, logo URL, primary colour, accent colour
+3. Config is stored against the partner record and served to learners via `GET /brand/partner/:partnerId`
+4. The frontend reads partner branding at boot (derived from the tenant slug in the URL or the user's `partnerId`)
+5. `partner_admin` sees the result but cannot change it — the "Brand Theme" nav item is removed from their sidebar
+
+**What partner_admin controls:** course catalog, Studio authoring, org management within their tenant.
+**What super_admin controls:** tenant existence, branding, platform settings.
 
 ### 3.2 Employer (org_admin) Dashboard — Required Screens
 

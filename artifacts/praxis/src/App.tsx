@@ -33,6 +33,7 @@ import { AdminPartners } from '@/pages/AdminPartners';
 import { PartnerTheme } from '@/pages/PartnerTheme';
 import { Reports } from '@/pages/Reports';
 import { CoachSettings } from '@/pages/CoachSettings';
+import { OrgMembers } from '@/pages/OrgMembers';
 
 // Layout
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -275,6 +276,7 @@ function ClerkProviderWithRoutes() {
           <ProtectedRoute path="/coach-settings" component={CoachSettings} />
           <ProtectedRoute path="/coach/submissions" component={CoachSubmissions} />
           <ProtectedRoute path="/coach" component={CoachLearners} />
+          <ProtectedRoute path="/org/members" component={OrgMembers} />
           <ProtectedRoute path="/admin/partners" component={AdminPartners} />
           <ProtectedRoute path="/partner/theme" component={PartnerTheme} />
           <ProtectedRoute path="/reports" component={Reports} />
