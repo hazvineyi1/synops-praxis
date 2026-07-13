@@ -1,0 +1,1 @@
+- [Synops Praxis architecture](praxis-architecture.md) — full MVP built: DB schema, Express routes, Socratic engine, Studio, PraxisMark, frontend

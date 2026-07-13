@@ -1,0 +1,17 @@
+export { NotFound } from './not-found';
+export { Home } from './Home';
+export { Dashboard } from './Dashboard';
+export { LearnSession } from './LearnSession';
+export { Studio } from './Studio';
+export { StudioNew } from './StudioNew';
+export { StudioEdit } from './StudioEdit';
+export { Courses } from './Courses';
+export { CourseDetail } from './CourseDetail';
+export { Assess } from './Assess';
+export { Credentials } from './Credentials';
+export { Verify } from './Verify';
+export { CoachLearners } from './CoachLearners';
+export { CoachSubmissions } from './CoachSubmissions';
+export { AdminPartners } from './AdminPartners';
+export { PartnerTheme } from './PartnerTheme';
+export { Reports } from './Reports';
