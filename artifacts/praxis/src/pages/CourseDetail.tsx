@@ -17,7 +17,7 @@ import { InteractiveVideoPlayer } from '@/components/InteractiveVideoPlayer';
 
 // --- Types ---
 interface Course { id: string; title: string; description: string; status: string; competencyTags: string[]; nqfLevel?: number; }
-interface Module { id: string; courseId: string; title: string; description?: string; order: number; status: string; estimatedMinutes: number; beatCount: number; beats?: Beat[]; }
+interface Module { id: string; courseId: string; title: string; description?: string; order: number; status: string; lessonType?: string; estimatedMinutes: number; beatCount: number; beats?: Beat[]; }
 interface Beat { id: string; type: string; title: string; order: number; videoUrl?: string; narration?: string | null; bulletPoints?: string[] | null; scenario?: string | null; }
 interface Assignment { id: string; title: string; description?: string; dueDate?: string; pointsPossible: number; published: boolean; }
 interface Discussion { id: string; title: string; body: string; isPinned?: boolean; replyCount: number; createdAt: string; author?: { firstName: string; lastName: string; }; }
@@ -67,9 +67,37 @@ function isOverdue(dueDate?: string) {
   return new Date(dueDate) < new Date();
 }
 
+const LESSON_TYPE_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  socratic: { icon: MessageSquare, label: 'Socratic',   color: 'text-violet-600' },
+  video:    { icon: Play,          label: 'Video',      color: 'text-blue-600'   },
+  slides:   { icon: BookOpen,      label: 'Slides',     color: 'text-emerald-600'},
+  quiz:     { icon: ClipboardList, label: 'Quiz',       color: 'text-amber-600'  },
+};
+
 function ModuleRow({ mod }: { mod: Module }) {
   const [, navigate] = useLocation();
   const isEmpty = mod.beatCount === 0;
+  const lessonType = mod.lessonType ?? 'socratic';
+  const typeMeta = LESSON_TYPE_META[lessonType] ?? LESSON_TYPE_META.socratic;
+  const TypeIcon = typeMeta.icon;
+
+  const startSession = useMutation({
+    mutationFn: () => apiFetch<{ id: string }>('/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ moduleId: mod.id }),
+    }),
+    onSuccess: (session) => navigate(`/learn/${session.id}`),
+  });
+
+  const handleClick = () => {
+    if (isEmpty || startSession.isPending) return;
+    if (lessonType === 'socratic') {
+      startSession.mutate();
+    } else {
+      navigate(`/courses/${mod.courseId}/modules/${mod.id}`);
+    }
+  };
+
   return (
     <Card
       className={cn(
@@ -77,13 +105,13 @@ function ModuleRow({ mod }: { mod: Module }) {
         !isEmpty && 'hover:shadow-md cursor-pointer',
         isEmpty && 'opacity-60',
       )}
-      onClick={() => !isEmpty && navigate(`/courses/${mod.courseId}/modules/${mod.id}`)}
+      onClick={handleClick}
     >
       <CardHeader>
         <div className="flex items-center gap-4">
-          {/* Order badge */}
-          <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {mod.order}
+          {/* Lesson type icon */}
+          <div className={cn('h-10 w-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0', typeMeta.color)}>
+            <TypeIcon className="h-5 w-5" />
           </div>
           {/* Title & meta */}
           <div className="flex-1 min-w-0">
@@ -98,12 +126,19 @@ function ModuleRow({ mod }: { mod: Module }) {
               {isEmpty && <span className="text-amber-600">· No content yet</span>}
             </div>
           </div>
-          {/* Status + arrow */}
+          {/* Type badge + status + arrow/spinner */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            <Badge variant="outline" className={cn('text-xs hidden sm:inline-flex', typeMeta.color)}>
+              {typeMeta.label}
+            </Badge>
             <Badge variant={mod.status === 'published' ? 'default' : 'secondary'} className="text-xs">
               {mod.status}
             </Badge>
-            {!isEmpty && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            {!isEmpty && (
+              startSession.isPending
+                ? <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
           </div>
         </div>
       </CardHeader>

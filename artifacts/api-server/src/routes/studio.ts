@@ -158,7 +158,7 @@ router.post("/studio/scripts/:draftId/publish", requireAuth, async (req, res) =>
   });
   if (!draft) { res.status(404).json({ error: "Not found" }); return; }
 
-  const { courseId, moduleTitle } = req.body;
+  const { courseId, moduleTitle, lessonType } = req.body;
   const beats = (draft.beatsData as any[]) ?? [];
 
   // Create module
@@ -168,6 +168,7 @@ router.post("/studio/scripts/:draftId/publish", requireAuth, async (req, res) =>
       courseId,
       title: moduleTitle ?? draft.title,
       status: "published",
+      lessonType: lessonType ?? "socratic",
       order: 0,
       estimatedMinutes: Math.ceil(beats.length * 2),
     })

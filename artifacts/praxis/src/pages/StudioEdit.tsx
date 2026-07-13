@@ -25,6 +25,7 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
   const [editingBeatId, setEditingBeatId] = useState<string | null>(null);
   const [beatsForm, setBeatsForm] = useState<Record<string, BeatUpdate>>({});
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
+  const [lessonType, setLessonType] = useState<string>('socratic');
 
   // Sync draft to local state once loaded
   React.useEffect(() => {
@@ -71,7 +72,7 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
       return;
     }
     publishDraft.mutate(
-      { draftId, data: { courseId: selectedCourseId, moduleTitle: draft.title } },
+      { draftId, data: { courseId: selectedCourseId, moduleTitle: draft.title, lessonType } },
       {
         onSuccess: () => {
           toast({ title: 'Published successfully', description: 'Module added to course.' });
@@ -97,6 +98,17 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
+            <Select value={lessonType} onValueChange={setLessonType}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Lesson type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="socratic">🧠 Socratic</SelectItem>
+                <SelectItem value="video">▶️ Video</SelectItem>
+                <SelectItem value="slides">📑 Slides</SelectItem>
+                <SelectItem value="quiz">✅ Quiz</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={selectedCourseId} onValueChange={setSelectedCourseId}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Select target course..." />

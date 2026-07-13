@@ -13,6 +13,7 @@ function toModuleResponse(m: typeof modulesTable.$inferSelect) {
     title: m.title,
     description: m.description,
     status: m.status,
+    lessonType: m.lessonType ?? 'socratic',
     order: m.order,
     beatCount: m.beatCount,
     estimatedMinutes: m.estimatedMinutes,
@@ -77,10 +78,10 @@ router.get("/modules/:moduleId", requireAuth, async (req, res) => {
 
 // PATCH /modules/:moduleId
 router.patch("/modules/:moduleId", requireAuth, async (req, res) => {
-  const { title, description, status, estimatedMinutes, order } = req.body;
+  const { title, description, status, lessonType, estimatedMinutes, order } = req.body;
   const [updated] = await db
     .update(modulesTable)
-    .set({ title, description, status, estimatedMinutes, order, updatedAt: new Date() })
+    .set({ title, description, status, lessonType, estimatedMinutes, order, updatedAt: new Date() })
     .where(eq(modulesTable.id, req.params.moduleId))
     .returning();
   res.json(toModuleResponse(updated));

@@ -45,6 +45,7 @@ interface ModuleDetail {
   estimatedMinutes: number;
   beatCount: number;
   status: string;
+  lessonType?: string;
   beats: Beat[];
 }
 
@@ -419,7 +420,13 @@ export function ModuleViewer() {
     enabled: !!courseId,
   });
 
-  const beats = mod?.beats ?? [];
+  const lessonType = mod?.lessonType ?? 'socratic';
+  const isSlides = lessonType === 'slides';
+  const allBeats = mod?.beats ?? [];
+  // Quiz mode shows only check-for-understanding beats; others show all
+  const beats = lessonType === 'quiz'
+    ? allBeats.filter(b => !!b.visualData?.quiz)
+    : allBeats;
   const currentBeat = beats[currentIndex];
   const completedCount = completedIds.size;
   const pct = beats.length > 0 ? (completedCount / beats.length) * 100 : 0;
@@ -586,7 +593,48 @@ export function ModuleViewer() {
         </aside>
 
         {/* ── MAIN CONTENT ──────────────────────────────────────────────────── */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className={cn(
+          'flex-1 overflow-y-auto',
+          isSlides && 'bg-slate-950 text-white',
+        )}>
+
+          {/* Video lesson: prominent player before beat content */}
+          {lessonType === 'video' && (
+            <div className="px-6 pt-6 pb-2">
+              {allBeats.some(b => b.videoUrl) ? (
+                <div className="aspect-video rounded-xl overflow-hidden bg-black shadow-lg border border-border">
+                  <video
+                    src={allBeats.find(b => b.videoUrl)!.videoUrl!}
+                    controls
+                    className="w-full h-full"
+                  />
+                </div>
+              ) : (
+                <div className="aspect-video rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-muted/20">
+                  <div className="text-center text-muted-foreground">
+                    <Play className="h-12 w-12 mx-auto mb-3 opacity-25" />
+                    <p className="text-sm font-medium">Video content coming soon</p>
+                    <p className="text-xs mt-1 opacity-60">Upload a video in the Studio editor</p>
+                  </div>
+                </div>
+              )}
+              {beats.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-3 mb-1 uppercase tracking-wider font-semibold">
+                  Supplementary Notes
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Quiz: empty state if no quiz beats */}
+          {lessonType === 'quiz' && beats.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground">
+              <HelpCircle className="h-10 w-10 opacity-30" />
+              <p className="text-sm">No quiz questions added yet.</p>
+              <p className="text-xs opacity-60">Add "Check for Understanding" beats in the Studio editor.</p>
+            </div>
+          )}
+
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={currentBeat?.id ?? currentIndex}
@@ -600,14 +648,15 @@ export function ModuleViewer() {
               animate="center"
               exit="exit"
               transition={{ duration: 0.26, ease: 'easeInOut' }}
+              className={isSlides ? 'min-h-[60vh] flex flex-col justify-center' : undefined}
             >
               {currentBeat ? (
                 <BeatRenderer beat={currentBeat} />
-              ) : (
+              ) : lessonType !== 'quiz' ? (
                 <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
                   No content available for this module yet.
                 </div>
-              )}
+              ) : null}
             </motion.div>
           </AnimatePresence>
 

@@ -8,12 +8,20 @@ export const moduleStatusEnum = pgEnum("module_status", [
   "published",
 ]);
 
+export const lessonTypeEnum = pgEnum("lesson_type", [
+  "socratic",
+  "video",
+  "slides",
+  "quiz",
+]);
+
 export const modulesTable = pgTable("modules", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   courseId: text("course_id").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   status: moduleStatusEnum("module_status").notNull().default("draft"),
+  lessonType: lessonTypeEnum("lesson_type").notNull().default("socratic"),
   order: integer("order").notNull().default(0),
   beatCount: integer("beat_count").notNull().default(0),
   estimatedMinutes: integer("estimated_minutes"),
