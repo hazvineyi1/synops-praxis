@@ -13,6 +13,7 @@ export function Home() {
             <span className="font-serif font-bold text-xl tracking-tight">Synops Praxis</span>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/dev-login" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">Try Demo</Link>
             <Link href="/sign-in" className="text-sm font-medium hover:text-primary transition-colors">Sign In</Link>
             <Link href="/sign-up">
               <Button>Get Started</Button>
@@ -41,9 +42,9 @@ export function Home() {
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/sign-in">
+              <Link href="/dev-login">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto text-base h-12 px-8">
-                  Sign In
+                  Try Demo
                 </Button>
               </Link>
             </div>
