@@ -77,26 +77,6 @@ const LESSON_TYPE_META: Record<string, { icon: React.ElementType; label: string;
 function ModuleRow({ mod }: { mod: Module }) {
   const [, navigate] = useLocation();
   const isEmpty = mod.beatCount === 0;
-  const lessonType = mod.lessonType ?? 'socratic';
-  const typeMeta = LESSON_TYPE_META[lessonType] ?? LESSON_TYPE_META.socratic;
-  const TypeIcon = typeMeta.icon;
-
-  const startSession = useMutation({
-    mutationFn: () => apiFetch<{ id: string }>('/sessions', {
-      method: 'POST',
-      body: JSON.stringify({ moduleId: mod.id }),
-    }),
-    onSuccess: (session) => navigate(`/learn/${session.id}`),
-  });
-
-  const handleClick = () => {
-    if (isEmpty || startSession.isPending) return;
-    if (lessonType === 'socratic') {
-      startSession.mutate();
-    } else {
-      navigate(`/courses/${mod.courseId}/modules/${mod.id}`);
-    }
-  };
 
   return (
     <Card
@@ -105,13 +85,13 @@ function ModuleRow({ mod }: { mod: Module }) {
         !isEmpty && 'hover:shadow-md cursor-pointer',
         isEmpty && 'opacity-60',
       )}
-      onClick={handleClick}
+      onClick={() => !isEmpty && navigate(`/courses/${mod.courseId}/modules/${mod.id}`)}
     >
       <CardHeader>
         <div className="flex items-center gap-4">
-          {/* Lesson type icon */}
-          <div className={cn('h-10 w-10 rounded-lg bg-muted flex items-center justify-center flex-shrink-0', typeMeta.color)}>
-            <TypeIcon className="h-5 w-5" />
+          {/* Order badge */}
+          <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0 shrink-0">
+            {String(mod.order).padStart(2, '0')}
           </div>
           {/* Title & meta */}
           <div className="flex-1 min-w-0">
@@ -126,19 +106,12 @@ function ModuleRow({ mod }: { mod: Module }) {
               {isEmpty && <span className="text-amber-600">· No content yet</span>}
             </div>
           </div>
-          {/* Type badge + status + arrow/spinner */}
+          {/* Status + arrow */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Badge variant="outline" className={cn('text-xs hidden sm:inline-flex', typeMeta.color)}>
-              {typeMeta.label}
-            </Badge>
             <Badge variant={mod.status === 'published' ? 'default' : 'secondary'} className="text-xs">
               {mod.status}
             </Badge>
-            {!isEmpty && (
-              startSession.isPending
-                ? <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
+            {!isEmpty && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           </div>
         </div>
       </CardHeader>

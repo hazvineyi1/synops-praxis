@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useRoute, useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useRoute, useLocation, useSearch } from 'wouter';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   ChevronLeft, ChevronRight, CheckCircle, BookOpen, List,
   MessageSquare, LayoutGrid, BarChart2, Play, HelpCircle,
-  X, Menu, Trophy, Clock,
+  X, Menu, Trophy, Clock, PlayCircle, GraduationCap, FileText, Zap,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -400,6 +400,8 @@ export function ModuleViewer() {
     '/courses/:courseId/modules/:moduleId',
   );
   const [, navigate] = useLocation();
+  const search = useSearch();
+  const modeParam = new URLSearchParams(search).get('mode');
   const { courseId, moduleId } = params ?? {};
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -420,11 +422,27 @@ export function ModuleViewer() {
     enabled: !!courseId,
   });
 
-  const lessonType = mod?.lessonType ?? 'socratic';
-  const isSlides = lessonType === 'slides';
   const allBeats = mod?.beats ?? [];
-  // Quiz mode shows only check-for-understanding beats; others show all
-  const beats = lessonType === 'quiz'
+
+  // ── Hub mode: no ?mode= param → show the activity picker ─────────────────
+  if (!modeParam) {
+    return (
+      <ModuleHubView
+        mod={mod}
+        allBeats={allBeats}
+        course={course}
+        courseId={courseId ?? ''}
+        moduleId={moduleId ?? ''}
+        navigate={navigate}
+        isLoading={isLoading}
+      />
+    );
+  }
+
+  // ── Viewer mode ───────────────────────────────────────────────────────────
+  const mode = modeParam;
+  const isSlides = mode === 'slides';
+  const beats = mode === 'quiz'
     ? allBeats.filter(b => !!b.visualData?.quiz)
     : allBeats;
   const currentBeat = beats[currentIndex];
@@ -495,10 +513,10 @@ export function ModuleViewer() {
           variant="ghost"
           size="sm"
           className="gap-1.5 text-muted-foreground hover:text-foreground shrink-0"
-          onClick={() => navigate(`/courses/${courseId}`)}
+          onClick={() => navigate(`/courses/${courseId}/modules/${moduleId}`)}
         >
           <ChevronLeft className="h-4 w-4" />
-          <span className="hidden sm:inline truncate max-w-[140px]">{course?.title ?? 'Course'}</span>
+          <span className="hidden sm:inline truncate max-w-[140px]">{mod?.title ?? 'Module'}</span>
         </Button>
         <span className="text-muted-foreground/40 hidden sm:inline">/</span>
         <h1 className="font-semibold text-sm truncate flex-1 hidden sm:block">{mod.title}</h1>
@@ -717,6 +735,246 @@ export function ModuleViewer() {
           </Button>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// ─── Module Hub ───────────────────────────────────────────────────────────────
+
+interface ActivityDef {
+  id: string;
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  description: string;
+  gradient: string;
+  iconBg: string;
+  iconColor: string;
+  border: string;
+  available: boolean;
+  loading?: boolean;
+  onClick: () => void;
+}
+
+function ActivityCard({ act }: { act: ActivityDef }) {
+  const Icon = act.icon;
+  return (
+    <button
+      type="button"
+      disabled={!act.available || act.loading}
+      onClick={act.onClick}
+      className={cn(
+        'relative text-left w-full rounded-2xl border p-5 transition-all duration-200 group',
+        act.border,
+        act.available && !act.loading
+          ? cn('hover:shadow-lg hover:-translate-y-0.5 cursor-pointer bg-gradient-to-br', act.gradient)
+          : 'opacity-50 cursor-not-allowed bg-muted/20',
+      )}
+    >
+      {/* Icon */}
+      <div className={cn('h-12 w-12 rounded-xl flex items-center justify-center mb-4', act.iconBg)}>
+        {act.loading
+          ? <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin opacity-60" />
+          : <Icon className={cn('h-6 w-6', act.iconColor)} />}
+      </div>
+
+      <div className="font-semibold text-sm mb-0.5 text-foreground">{act.title}</div>
+      <div className="text-xs text-muted-foreground mb-3">{act.subtitle}</div>
+      <p className="text-xs text-muted-foreground/80 leading-relaxed line-clamp-2">{act.description}</p>
+
+      {/* Top-right indicator */}
+      {!act.available && (
+        <div className="absolute top-3 right-3">
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Soon</Badge>
+        </div>
+      )}
+      {act.available && !act.loading && (
+        <ChevronRight className="absolute top-4 right-4 h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+      )}
+    </button>
+  );
+}
+
+function ModuleHubView({
+  mod, allBeats, course, courseId, moduleId, navigate, isLoading,
+}: {
+  mod: ModuleDetail | undefined;
+  allBeats: Beat[];
+  course: CourseSummary | undefined;
+  courseId: string;
+  moduleId: string;
+  navigate: (to: string) => void;
+  isLoading: boolean;
+}) {
+  const hasVideo   = allBeats.some(b => b.type === 'video' || !!b.videoUrl);
+  const hasReading = allBeats.some(b => ['title_card','points','scenario','compare','close'].includes(b.type));
+  const hasQuiz    = allBeats.some(b => !!b.visualData?.quiz);
+  const hasContent = allBeats.length > 0;
+  const quizCount  = allBeats.filter(b => !!b.visualData?.quiz).length;
+  const readCount  = allBeats.filter(b => !b.visualData?.quiz).length;
+
+  const startSession = useMutation({
+    mutationFn: () => apiFetch<{ id: string }>('/sessions', {
+      method: 'POST',
+      body: JSON.stringify({ moduleId }),
+    }),
+    onSuccess: (s) => navigate(`/learn/${s.id}`),
+  });
+
+  const activities: ActivityDef[] = [
+    {
+      id: 'video',
+      icon: PlayCircle,
+      title: 'Video & Animation',
+      subtitle: hasVideo ? 'Watch' : 'No video yet',
+      description: 'Learn through visual content and animations.',
+      gradient: 'from-blue-500/10 to-blue-600/5',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      border: 'border-blue-200 dark:border-blue-800',
+      available: hasVideo,
+      onClick: () => navigate(`/courses/${courseId}/modules/${moduleId}?mode=video`),
+    },
+    {
+      id: 'reading',
+      icon: BookOpen,
+      title: 'Reading',
+      subtitle: hasReading ? `${readCount} page${readCount !== 1 ? 's' : ''}` : 'No content yet',
+      description: 'Work through structured pages at your own pace.',
+      gradient: 'from-emerald-500/10 to-emerald-600/5',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      border: 'border-emerald-200 dark:border-emerald-800',
+      available: hasReading,
+      onClick: () => navigate(`/courses/${courseId}/modules/${moduleId}?mode=reading`),
+    },
+    {
+      id: 'interactive',
+      icon: Zap,
+      title: 'Interactive',
+      subtitle: 'Coming soon',
+      description: 'Hands-on simulations and exercises.',
+      gradient: 'from-violet-500/10 to-violet-600/5',
+      iconBg: 'bg-violet-100 dark:bg-violet-900/40',
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      border: 'border-violet-200 dark:border-violet-800',
+      available: false,
+      onClick: () => {},
+    },
+    {
+      id: 'quiz',
+      icon: HelpCircle,
+      title: 'Check for Understanding',
+      subtitle: hasQuiz ? `${quizCount} question${quizCount !== 1 ? 's' : ''}` : 'No questions yet',
+      description: 'Quick knowledge checks to test your recall.',
+      gradient: 'from-amber-500/10 to-amber-600/5',
+      iconBg: 'bg-amber-100 dark:bg-amber-900/40',
+      iconColor: 'text-amber-600 dark:text-amber-400',
+      border: 'border-amber-200 dark:border-amber-800',
+      available: hasQuiz,
+      onClick: () => navigate(`/courses/${courseId}/modules/${moduleId}?mode=quiz`),
+    },
+    {
+      id: 'test',
+      icon: GraduationCap,
+      title: 'Final Test',
+      subtitle: hasContent ? 'Socratic AI dialogue' : 'No content yet',
+      description: 'Demonstrate mastery through guided AI questioning.',
+      gradient: 'from-rose-500/10 to-rose-600/5',
+      iconBg: 'bg-rose-100 dark:bg-rose-900/40',
+      iconColor: 'text-rose-600 dark:text-rose-400',
+      border: 'border-rose-200 dark:border-rose-800',
+      available: hasContent,
+      loading: startSession.isPending,
+      onClick: () => startSession.mutate(),
+    },
+    {
+      id: 'assignment',
+      icon: FileText,
+      title: 'Assignment',
+      subtitle: 'Submit your work',
+      description: 'Apply your learning with a practical task.',
+      gradient: 'from-slate-500/10 to-slate-600/5',
+      iconBg: 'bg-slate-100 dark:bg-slate-800',
+      iconColor: 'text-slate-600 dark:text-slate-400',
+      border: 'border-slate-200 dark:border-slate-700',
+      available: true,
+      onClick: () => navigate(`/courses/${courseId}?tab=assignments`),
+    },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="h-[68px] border-b border-border" />
+        <div className="max-w-4xl mx-auto px-6 py-10">
+          <Skeleton className="h-5 w-32 mb-3" />
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-96 mb-10" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-44 rounded-2xl" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Sticky top bar */}
+      <header className="border-b border-border bg-card/95 backdrop-blur sticky top-0 z-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-[68px] flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground shrink-0"
+            onClick={() => navigate(`/courses/${courseId}`)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">{course?.title ?? 'Course'}</span>
+          </Button>
+          <span className="text-muted-foreground/30 hidden sm:inline">/</span>
+          <h1 className="font-semibold text-sm flex-1 truncate hidden sm:block">{mod?.title}</h1>
+          {mod?.estimatedMinutes && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto shrink-0">
+              <Clock className="h-3.5 w-3.5" />
+              {mod.estimatedMinutes} min total
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Hero */}
+      <div className="border-b border-border bg-gradient-to-b from-primary/5 to-transparent">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            {course?.title}
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-3">{mod?.title}</h2>
+          {mod?.description && (
+            <p className="text-muted-foreground max-w-xl leading-relaxed">{mod.description}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Activity grid */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+        <p className="text-sm font-medium text-muted-foreground mb-5">
+          How would you like to engage with this module?
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activities.map((act, i) => (
+            <motion.div
+              key={act.id}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.055, duration: 0.3 }}
+            >
+              <ActivityCard act={act} />
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
