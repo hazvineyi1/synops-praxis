@@ -6,6 +6,7 @@ import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wo
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { DevSessionProvider, useDevSession } from '@/context/DevSessionContext';
 
 // Pages
 import NotFound from '@/pages/not-found';
@@ -21,6 +22,7 @@ import { AssignmentDetail } from '@/pages/AssignmentDetail';
 import { DiscussionThread } from '@/pages/DiscussionThread';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { CourseGradebook } from '@/pages/CourseGradebook';
+import { DevLogin } from '@/pages/DevLogin';
 import { Assess } from '@/pages/Assess';
 import { Credentials } from '@/pages/Credentials';
 import { Verify } from '@/pages/Verify';
@@ -58,7 +60,6 @@ const clerkAppearance = {
   options: {
     logoPlacement: "inside" as const,
     logoLinkUrl: basePath || "/",
-    // We will use a text logo or abstract shape
   },
   variables: {
     colorPrimary: "hsl(222, 47%, 11%)",
@@ -118,6 +119,8 @@ function SignUpPage() {
 }
 
 function HomeRedirect() {
+  const { isDevSession } = useDevSession();
+  if (isDevSession) return <Redirect to="/dashboard" />;
   return (
     <>
       <Show when="signed-in">
@@ -152,51 +155,77 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-function ProtectedRoute({ component: Component, ...rest }: any) {
+/**
+ * ProtectedRoute: renders inside AppLayout.
+ * Accepts both Clerk sign-in AND dev session cookie.
+ */
+function ProtectedRoute({ component: Component, path }: { component: React.ComponentType<any>; path: string }) {
+  const { isDevSession, loading } = useDevSession();
+
   return (
-    <Route {...rest}>
-      {(params) => (
-        <>
-          <Show when="signed-in">
+    <Route path={path}>
+      {(params) => {
+        // Dev session bypasses Clerk entirely
+        if (isDevSession) {
+          return (
             <AppLayout>
               <Component params={params} />
             </AppLayout>
-          </Show>
-          <Show when="signed-out">
-            <Redirect to="/sign-in" />
-          </Show>
-        </>
-      )}
+          );
+        }
+        if (loading) return null;
+        return (
+          <>
+            <Show when="signed-in">
+              <AppLayout>
+                <Component params={params} />
+              </AppLayout>
+            </Show>
+            <Show when="signed-out">
+              <Redirect to="/sign-in" />
+            </Show>
+          </>
+        );
+      }}
     </Route>
   );
 }
 
-function FocusRoute({ component: Component, ...rest }: any) {
-  // Like ProtectedRoute but no AppLayout
+/**
+ * FocusRoute: full-screen protected route (no sidebar layout).
+ */
+function FocusRoute({ component: Component, path }: { component: React.ComponentType<any>; path: string }) {
+  const { isDevSession, loading } = useDevSession();
+
   return (
-    <Route {...rest}>
-      {(params) => (
-        <>
-          <Show when="signed-in">
-            <Component params={params} />
-          </Show>
-          <Show when="signed-out">
-            <Redirect to="/sign-in" />
-          </Show>
-        </>
-      )}
+    <Route path={path}>
+      {(params) => {
+        if (isDevSession) {
+          return <Component params={params} />;
+        }
+        if (loading) return null;
+        return (
+          <>
+            <Show when="signed-in">
+              <Component params={params} />
+            </Show>
+            <Show when="signed-out">
+              <Redirect to="/sign-in" />
+            </Show>
+          </>
+        );
+      }}
     </Route>
   );
 }
 
-function PublicRoute({ component: Component, ...rest }: any) {
+function PublicRoute({ component: Component, path }: { component: React.ComponentType<any>; path: string }) {
   return (
-    <Route {...rest}>
+    <Route path={path}>
       {(params) => <Component params={params} />}
     </Route>
   );
 }
-
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
@@ -217,30 +246,31 @@ function ClerkProviderWithRoutes() {
           <Route path="/" component={HomeRedirect} />
           <Route path="/sign-in/*?" component={SignInPage} />
           <Route path="/sign-up/*?" component={SignUpPage} />
-          
-          {/* Public Verification */}
+
+          {/* Dev demo login — public, no Clerk required */}
+          <PublicRoute path="/dev-login" component={DevLogin} />
+
+          {/* Public routes */}
           <PublicRoute path="/verify/:credentialId" component={Verify} />
 
-          {/* Full Screen Focus */}
+          {/* Full-screen focus routes */}
           <FocusRoute path="/learn/:sessionId" component={LearnSession} />
 
-          {/* App Layout */}
+          {/* App layout routes */}
           <ProtectedRoute path="/dashboard" component={Dashboard} />
-          <ProtectedRoute path="/studio" component={Studio} />
           <ProtectedRoute path="/studio/new" component={StudioNew} />
           <ProtectedRoute path="/studio/:draftId" component={StudioEdit} />
-          <ProtectedRoute path="/courses" component={Courses} />
-          <ProtectedRoute path="/courses/:courseId" component={CourseDetail} />
+          <ProtectedRoute path="/studio" component={Studio} />
           <ProtectedRoute path="/courses/:courseId/assignments/:assignmentId" component={AssignmentDetail} />
           <ProtectedRoute path="/courses/:courseId/discussions/:discussionId" component={DiscussionThread} />
           <ProtectedRoute path="/courses/:courseId/gradebook" component={CourseGradebook} />
+          <ProtectedRoute path="/courses/:courseId" component={CourseDetail} />
+          <ProtectedRoute path="/courses" component={Courses} />
           <ProtectedRoute path="/notifications" component={NotificationsPage} />
           <ProtectedRoute path="/assess/:assessmentId" component={Assess} />
           <ProtectedRoute path="/credentials" component={Credentials} />
-          
-          <ProtectedRoute path="/coach" component={CoachLearners} />
           <ProtectedRoute path="/coach/submissions" component={CoachSubmissions} />
-          
+          <ProtectedRoute path="/coach" component={CoachLearners} />
           <ProtectedRoute path="/admin/partners" component={AdminPartners} />
           <ProtectedRoute path="/partner/theme" component={PartnerTheme} />
           <ProtectedRoute path="/reports" component={Reports} />
@@ -256,7 +286,9 @@ function App() {
   return (
     <TooltipProvider>
       <WouterRouter base={basePath}>
-        <ClerkProviderWithRoutes />
+        <DevSessionProvider>
+          <ClerkProviderWithRoutes />
+        </DevSessionProvider>
       </WouterRouter>
       <Toaster />
     </TooltipProvider>

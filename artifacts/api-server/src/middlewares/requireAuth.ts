@@ -14,11 +14,38 @@ declare global {
   }
 }
 
+export const DEV_SESSION_COOKIE = "praxis_dev_session";
+const isDev = process.env.NODE_ENV !== "production";
+
 /**
- * Verify Clerk session and load our local user record.
- * Creates a local user record (JIT) if one doesn't exist yet.
+ * Verify session and load our local user record.
+ *
+ * In development, checks for a `praxis_dev_session` cookie first.
+ * This lets the /dev-login page impersonate any seed user without Clerk.
+ *
+ * Otherwise, verifies the Clerk session and JIT-provisions a user record.
  */
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  // ── Dev impersonation bypass ──────────────────────────────────────────────
+  if (isDev) {
+    const devUserId = req.cookies?.[DEV_SESSION_COOKIE];
+    if (devUserId) {
+      try {
+        const user = await db.query.usersTable.findFirst({
+          where: eq(usersTable.id, devUserId),
+        });
+        if (user) {
+          req.userId = user.id;
+          req.dbUser = user;
+          return next();
+        }
+      } catch (err) {
+        // fall through to Clerk auth if lookup fails
+      }
+    }
+  }
+
+  // ── Clerk auth ────────────────────────────────────────────────────────────
   const auth = getAuth(req);
   const clerkId = auth?.userId;
 

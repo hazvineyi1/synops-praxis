@@ -19,3 +19,4 @@ export { AssignmentDetail } from './AssignmentDetail';
 export { DiscussionThread } from './DiscussionThread';
 export { NotificationsPage } from './NotificationsPage';
 export { CourseGradebook } from './CourseGradebook';
+export { DevLogin } from './DevLogin';
