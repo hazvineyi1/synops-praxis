@@ -4,6 +4,7 @@ import { useGetMe } from '@workspace/api-client-react';
 import { useClerk } from '@clerk/react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
+import { useDevSession } from '@/context/DevSessionContext';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { 
   LayoutDashboard, 
@@ -23,6 +24,15 @@ import { Button } from '@/components/ui/button';
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: user, isLoading } = useGetMe();
   const { signOut } = useClerk();
+  const { isDevSession, clearDevSession } = useDevSession();
+
+  const handleSignOut = () => {
+    if (isDevSession) {
+      clearDevSession();
+    } else {
+      signOut({ redirectUrl: '/' });
+    }
+  };
 
   const { data: notifCount } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -122,7 +132,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
             Notifications {unreadCount > 0 && <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{unreadCount > 9 ? '9+' : unreadCount}</span>}
           </Link>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground mt-1" onClick={() => signOut({ redirectUrl: '/' })}>
+          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground mt-1" onClick={handleSignOut}>
             <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
@@ -140,7 +150,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="absolute top-0.5 right-0.5 h-4 w-4 flex items-center justify-center text-[10px] font-bold bg-red-500 text-white rounded-full">{unreadCount > 9 ? '9+' : unreadCount}</span>
               )}
             </Link>
-            <Button variant="ghost" size="icon" onClick={() => signOut()}>
+            <Button variant="ghost" size="icon" onClick={handleSignOut}>
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
