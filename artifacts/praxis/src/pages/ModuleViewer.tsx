@@ -24,6 +24,18 @@ interface Quiz {
   explanation: string;
 }
 
+interface InteractiveItem { id: string; text: string; correctPosition?: number; }
+interface InteractivePair { id: string; left: string; right: string; }
+interface Interactive {
+  type: 'drag_order' | 'match_pairs' | 'fill_blank';
+  prompt: string;
+  items?: InteractiveItem[];
+  pairs?: InteractivePair[];
+  template?: string;
+  wordBank?: string[];
+  answers?: string[];
+}
+
 interface Beat {
   id: string;
   type: string;
@@ -32,7 +44,7 @@ interface Beat {
   narration: string;
   bulletPoints?: string[] | null;
   scenario?: string | null;
-  visualData?: { quiz?: Quiz; subtype?: string; columns?: [string, string] } | null;
+  visualData?: { quiz?: Quiz; interactive?: Interactive; subtype?: string; columns?: [string, string] } | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
 }
@@ -378,9 +390,359 @@ function QuizBeat({ beat }: { beat: Beat }) {
   );
 }
 
+// ─── Interactive beats ─────────────────────────────────────────────────────────
+
+function DragOrderActivity({ ia }: { ia: Interactive }) {
+  const [order, setOrder] = useState<InteractiveItem[]>(() =>
+    [...(ia.items ?? [])].sort(() => Math.random() - 0.5),
+  );
+  const [checked, setChecked] = useState(false);
+
+  const move = (idx: number, dir: -1 | 1) => {
+    const next = [...order];
+    const target = idx + dir;
+    if (target < 0 || target >= next.length) return;
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setOrder(next);
+  };
+
+  const allCorrect = order.every((item, i) => item.correctPosition === i + 1);
+
+  return (
+    <div className="px-6 py-10 max-w-2xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 overflow-hidden shadow-sm">
+          <div className="bg-violet-50 dark:bg-violet-950/20 px-5 py-3.5 border-b border-violet-200 dark:border-violet-800 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-violet-600" />
+            <span className="font-semibold text-sm text-violet-700 dark:text-violet-300">Sort in the correct order</span>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm font-medium leading-relaxed text-muted-foreground">{ia.prompt}</p>
+            <div className="space-y-2">
+              {order.map((item, i) => {
+                const correct = checked && item.correctPosition === i + 1;
+                const wrong = checked && item.correctPosition !== i + 1;
+                return (
+                  <motion.div
+                    key={item.id}
+                    layout
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className={cn(
+                      'flex items-center gap-3 rounded-xl border p-3.5 text-sm transition-colors',
+                      correct && 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
+                      wrong && 'border-rose-400 bg-rose-50 dark:bg-rose-950/30',
+                      !checked && 'border-border bg-muted/30',
+                    )}
+                  >
+                    <span className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-xs font-bold flex-shrink-0 text-muted-foreground">
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 font-medium">{item.text}</span>
+                    {!checked && (
+                      <div className="flex flex-col gap-0.5">
+                        <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                          className="p-1 rounded hover:bg-muted disabled:opacity-20 transition-colors">
+                          <ChevronLeft className="h-3 w-3 rotate-90" />
+                        </button>
+                        <button type="button" onClick={() => move(i, 1)} disabled={i === order.length - 1}
+                          className="p-1 rounded hover:bg-muted disabled:opacity-20 transition-colors">
+                          <ChevronRight className="h-3 w-3 rotate-90" />
+                        </button>
+                      </div>
+                    )}
+                    {correct && <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />}
+                    {wrong && <X className="h-4 w-4 text-rose-500 flex-shrink-0" />}
+                  </motion.div>
+                );
+              })}
+            </div>
+            {!checked ? (
+              <Button className="mt-2" onClick={() => setChecked(true)}>Check Order</Button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  'rounded-xl border p-4 text-sm font-medium',
+                  allCorrect
+                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-700'
+                    : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 text-amber-700',
+                )}
+              >
+                {allCorrect
+                  ? '✓ Perfect order! Well done.'
+                  : 'Not quite — review the highlighted items and try to recall the correct sequence.'}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function MatchPairsActivity({ ia }: { ia: Interactive }) {
+  const [selectedLeft, setSelectedLeft] = useState<string | null>(null);
+  const [matches, setMatches] = useState<Record<string, string>>({});
+  const [checked, setChecked] = useState(false);
+
+  const rights = useState(() => [...(ia.pairs ?? [])].sort(() => Math.random() - 0.5))[0];
+
+  const selectLeft = (id: string) => {
+    if (checked) return;
+    setSelectedLeft(prev => prev === id ? null : id);
+  };
+  const selectRight = (rightId: string) => {
+    if (checked || !selectedLeft) return;
+    setMatches(prev => {
+      const next = { ...prev };
+      // Remove any existing match to this right
+      Object.keys(next).forEach(k => { if (next[k] === rightId) delete next[k]; });
+      next[selectedLeft] = rightId;
+      return next;
+    });
+    setSelectedLeft(null);
+  };
+
+  const colorFor = (leftId: string) => {
+    const colors = ['bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40',
+      'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/40',
+      'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40',
+      'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-900/40',
+      'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/40'];
+    const idx = (ia.pairs ?? []).findIndex(p => p.id === leftId);
+    return colors[idx % colors.length];
+  };
+
+  const isAllCorrect = (ia.pairs ?? []).every(p => matches[p.id] === p.id);
+
+  return (
+    <div className="px-6 py-10 max-w-2xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 overflow-hidden shadow-sm">
+          <div className="bg-violet-50 dark:bg-violet-950/20 px-5 py-3.5 border-b border-violet-200 dark:border-violet-800 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-violet-600" />
+            <span className="font-semibold text-sm text-violet-700 dark:text-violet-300">Match the pairs</span>
+          </div>
+          <div className="p-5 space-y-4">
+            <p className="text-sm text-muted-foreground">{ia.prompt}</p>
+            {!selectedLeft && !checked && (
+              <p className="text-xs text-muted-foreground/70 italic">Tap a concept on the left, then tap its match on the right.</p>
+            )}
+            {selectedLeft && !checked && (
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                className="text-xs text-primary font-medium">
+                Now tap the matching definition on the right ›
+              </motion.p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Left: concepts */}
+              <div className="space-y-2">
+                {(ia.pairs ?? []).map(p => {
+                  const matched = !!matches[p.id];
+                  const isSelected = selectedLeft === p.id;
+                  const correctMatch = checked && matches[p.id] === p.id;
+                  const wrongMatch = checked && matches[p.id] !== p.id;
+                  return (
+                    <button key={p.id} type="button"
+                      onClick={() => selectLeft(p.id)}
+                      className={cn(
+                        'w-full text-left rounded-xl border p-3 text-sm font-medium transition-all',
+                        isSelected && 'ring-2 ring-primary border-primary bg-primary/10',
+                        matched && !isSelected && !checked && colorFor(p.id),
+                        correctMatch && 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
+                        wrongMatch && 'border-rose-400 bg-rose-50 dark:bg-rose-950/30',
+                        !matched && !isSelected && 'border-border hover:bg-muted/50',
+                      )}>
+                      {p.left}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Right: definitions */}
+              <div className="space-y-2">
+                {rights.map(p => {
+                  const matchedBy = Object.keys(matches).find(k => matches[k] === p.id);
+                  const isMatchedLeft = !!matchedBy;
+                  const correctMatch = checked && matchedBy === p.id;
+                  const wrongMatch = checked && matchedBy && matchedBy !== p.id;
+                  return (
+                    <button key={p.id} type="button"
+                      onClick={() => selectRight(p.id)}
+                      disabled={checked}
+                      className={cn(
+                        'w-full text-left rounded-xl border p-3 text-sm transition-all',
+                        isMatchedLeft && !checked && colorFor(matchedBy!),
+                        correctMatch && 'border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30',
+                        wrongMatch && 'border-rose-400 bg-rose-50 dark:bg-rose-950/30',
+                        !isMatchedLeft && 'border-border hover:bg-muted/50',
+                        selectedLeft && !isMatchedLeft && 'ring-1 ring-primary/30 hover:bg-primary/5',
+                      )}>
+                      {p.right}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {!checked ? (
+              <Button
+                className="mt-2"
+                disabled={(ia.pairs ?? []).some(p => !matches[p.id])}
+                onClick={() => setChecked(true)}
+              >
+                Check Matches
+              </Button>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  'rounded-xl border p-4 text-sm font-medium',
+                  isAllCorrect
+                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-700'
+                    : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 text-amber-700',
+                )}
+              >
+                {isAllCorrect ? '✓ All pairs matched correctly!' : 'Some pairs are off — review the highlighted items.'}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function FillBlankActivity({ ia }: { ia: Interactive }) {
+  const blanks = ia.answers ?? [];
+  const [filled, setFilled] = useState<(string | null)[]>(blanks.map(() => null));
+  const [bank, setBank] = useState<string[]>(() => [...(ia.wordBank ?? [])].sort(() => Math.random() - 0.5));
+  const [checked, setChecked] = useState(false);
+
+  const parts = (ia.template ?? '').split('___');
+
+  const placeWord = (word: string) => {
+    if (checked) return;
+    const nextEmpty = filled.indexOf(null);
+    if (nextEmpty === -1) return;
+    setFilled(prev => prev.map((v, i) => i === nextEmpty ? word : v));
+    setBank(prev => prev.filter(w => w !== word));
+  };
+
+  const removeWord = (blankIdx: number) => {
+    if (checked) return;
+    const word = filled[blankIdx];
+    if (!word) return;
+    setFilled(prev => prev.map((v, i) => i === blankIdx ? null : v));
+    setBank(prev => [...prev, word]);
+  };
+
+  const allCorrect = filled.every((w, i) => w?.toLowerCase() === blanks[i]?.toLowerCase());
+
+  return (
+    <div className="px-6 py-10 max-w-2xl mx-auto">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="rounded-2xl border border-violet-200 dark:border-violet-800 overflow-hidden shadow-sm">
+          <div className="bg-violet-50 dark:bg-violet-950/20 px-5 py-3.5 border-b border-violet-200 dark:border-violet-800 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-violet-600" />
+            <span className="font-semibold text-sm text-violet-700 dark:text-violet-300">Fill in the blanks</span>
+          </div>
+          <div className="p-5 space-y-5">
+            <p className="text-xs text-muted-foreground">{ia.prompt}</p>
+            {/* Template with blanks */}
+            <div className="text-base leading-loose font-medium">
+              {parts.map((part, i) => (
+                <span key={i}>
+                  {part}
+                  {i < blanks.length && (
+                    <button
+                      type="button"
+                      onClick={() => removeWord(i)}
+                      className={cn(
+                        'inline-flex items-center px-3 py-0.5 mx-1 rounded-lg border-2 border-dashed min-w-[80px] text-center justify-center text-sm transition-all',
+                        filled[i] && !checked && 'border-primary bg-primary/10 text-primary font-semibold',
+                        !filled[i] && 'border-muted-foreground/30 text-muted-foreground/50',
+                        checked && filled[i]?.toLowerCase() === blanks[i]?.toLowerCase() && 'border-emerald-400 bg-emerald-50 text-emerald-700',
+                        checked && filled[i]?.toLowerCase() !== blanks[i]?.toLowerCase() && 'border-rose-400 bg-rose-50 text-rose-700',
+                      )}
+                    >
+                      {filled[i] ?? '  '}
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+
+            {/* Word bank */}
+            {!checked && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Word bank</p>
+                <div className="flex flex-wrap gap-2">
+                  {bank.map(word => (
+                    <motion.button
+                      key={word}
+                      type="button"
+                      layout
+                      onClick={() => placeWord(word)}
+                      whileTap={{ scale: 0.93 }}
+                      className="px-3 py-1.5 rounded-full border border-border bg-card text-sm font-medium hover:bg-primary/10 hover:border-primary/50 transition-colors"
+                    >
+                      {word}
+                    </motion.button>
+                  ))}
+                  {bank.length === 0 && <span className="text-xs text-muted-foreground italic">All words placed — tap a blank to return it.</span>}
+                </div>
+              </div>
+            )}
+
+            {!checked ? (
+              <Button
+                disabled={filled.some(f => f === null)}
+                onClick={() => setChecked(true)}
+              >
+                Check Answers
+              </Button>
+            ) : (
+              <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  'rounded-xl border p-4 text-sm font-medium',
+                  allCorrect
+                    ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 text-emerald-700'
+                    : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 text-amber-700',
+                )}
+              >
+                {allCorrect ? '✓ All blanks correct! Great recall.' : (
+                  <>Not all correct. Correct answers: {blanks.map((b, i) => (
+                    <span key={i} className={cn(
+                      'mx-1 px-2 rounded font-semibold',
+                      filled[i]?.toLowerCase() === b?.toLowerCase() ? 'text-emerald-700' : 'bg-amber-100 text-amber-800',
+                    )}>{b}</span>
+                  ))}</>
+                )}
+              </motion.div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function InteractiveBeat({ beat }: { beat: Beat }) {
+  const ia = beat.visualData!.interactive!;
+  if (ia.type === 'drag_order')  return <DragOrderActivity ia={ia} />;
+  if (ia.type === 'match_pairs') return <MatchPairsActivity ia={ia} />;
+  if (ia.type === 'fill_blank')  return <FillBlankActivity ia={ia} />;
+  return (
+    <div className="px-8 py-12 text-center text-muted-foreground text-sm">
+      Unknown interactive type: {ia.type}
+    </div>
+  );
+}
+
 // ─── Beat router ──────────────────────────────────────────────────────────────
 
 function BeatRenderer({ beat }: { beat: Beat }) {
+  if (beat.visualData?.interactive) return <InteractiveBeat key={beat.id} beat={beat} />;
   if (beat.visualData?.quiz) return <QuizBeat key={beat.id} beat={beat} />;
   switch (beat.type) {
     case 'title_card': return <TitleCardBeat beat={beat} />;
@@ -429,7 +791,9 @@ export function ModuleViewer() {
   const isSlides = mode === 'slides';
   const beats = mode === 'quiz'
     ? allBeats.filter(b => !!b.visualData?.quiz)
-    : allBeats;
+    : mode === 'interactive'
+      ? allBeats.filter(b => !!b.visualData?.interactive)
+      : allBeats;
   const currentBeat = beats[currentIndex];
   const completedCount = completedIds.size;
   const pct = beats.length > 0 ? (completedCount / beats.length) * 100 : 0;
@@ -806,10 +1170,12 @@ function ModuleHubView({
   navigate: (to: string) => void;
   isLoading: boolean;
 }) {
-  const hasVideo   = allBeats.some(b => b.type === 'video' || !!b.videoUrl);
-  const hasReading = allBeats.some(b => ['title_card','points','scenario','compare','close'].includes(b.type));
-  const hasQuiz    = allBeats.some(b => !!b.visualData?.quiz);
-  const hasContent = allBeats.length > 0;
+  const hasVideo        = allBeats.some(b => b.type === 'video' || !!b.videoUrl);
+  const hasReading      = allBeats.some(b => ['title_card','points','scenario','compare','close'].includes(b.type));
+  const hasQuiz         = allBeats.some(b => !!b.visualData?.quiz);
+  const hasInteractive  = allBeats.some(b => !!b.visualData?.interactive);
+  const hasContent      = allBeats.length > 0;
+  const interactiveCount = allBeats.filter(b => !!b.visualData?.interactive).length;
   const quizCount  = allBeats.filter(b => !!b.visualData?.quiz).length;
   const readCount  = allBeats.filter(b => !b.visualData?.quiz).length;
 
@@ -852,14 +1218,14 @@ function ModuleHubView({
       id: 'interactive',
       icon: Zap,
       title: 'Interactive',
-      subtitle: 'Coming soon',
-      description: 'Hands-on simulations and exercises.',
+      subtitle: hasInteractive ? `${interactiveCount} activit${interactiveCount !== 1 ? 'ies' : 'y'}` : 'No activities yet',
+      description: 'Drag-to-order, match pairs, and fill-in-the-blank exercises.',
       gradient: 'from-violet-500/10 to-violet-600/5',
       iconBg: 'bg-violet-100 dark:bg-violet-900/40',
       iconColor: 'text-violet-600 dark:text-violet-400',
       border: 'border-violet-200 dark:border-violet-800',
-      available: false,
-      onClick: () => {},
+      available: hasInteractive,
+      onClick: () => navigate(`/courses/${courseId}/modules/${moduleId}?mode=interactive`),
     },
     {
       id: 'quiz',
