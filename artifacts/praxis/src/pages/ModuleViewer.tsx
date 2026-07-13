@@ -424,6 +424,21 @@ export function ModuleViewer() {
 
   const allBeats = mod?.beats ?? [];
 
+  // ── Viewer-mode derived state (computed before any early returns) ──────────
+  const mode = modeParam ?? '';
+  const isSlides = mode === 'slides';
+  const beats = mode === 'quiz'
+    ? allBeats.filter(b => !!b.visualData?.quiz)
+    : allBeats;
+  const currentBeat = beats[currentIndex];
+  const completedCount = completedIds.size;
+  const pct = beats.length > 0 ? (completedCount / beats.length) * 100 : 0;
+
+  // Scroll to top whenever beat changes — must be before any early returns
+  useEffect(() => {
+    if (modeParam) mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentIndex, modeParam]);
+
   // ── Hub mode: no ?mode= param → show the activity picker ─────────────────
   if (!modeParam) {
     return (
@@ -438,21 +453,6 @@ export function ModuleViewer() {
       />
     );
   }
-
-  // ── Viewer mode ───────────────────────────────────────────────────────────
-  const mode = modeParam;
-  const isSlides = mode === 'slides';
-  const beats = mode === 'quiz'
-    ? allBeats.filter(b => !!b.visualData?.quiz)
-    : allBeats;
-  const currentBeat = beats[currentIndex];
-  const completedCount = completedIds.size;
-  const pct = beats.length > 0 ? (completedCount / beats.length) * 100 : 0;
-
-  // Scroll to top whenever beat changes
-  useEffect(() => {
-    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentIndex]);
 
   function markCurrentComplete() {
     if (currentBeat) setCompletedIds(prev => new Set([...prev, currentBeat.id]));
