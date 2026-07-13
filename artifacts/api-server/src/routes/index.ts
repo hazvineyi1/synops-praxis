@@ -24,6 +24,8 @@ import pagesRouter from "./pages";
 import groupsRouter from "./groups";
 import notificationsRouter from "./notifications";
 import interactiveVideoRouter from "./interactive_video";
+import learnRouter from "./learn";
+import whatsappRouter from "./whatsapp";
 import devRouter from "./dev";
 
 const router = Router();
@@ -53,6 +55,8 @@ router.use(pagesRouter);
 router.use(groupsRouter);
 router.use(notificationsRouter);
 router.use(interactiveVideoRouter);
+router.use(learnRouter);
+router.use(whatsappRouter);
 router.use(devRouter);
 
 export default router;

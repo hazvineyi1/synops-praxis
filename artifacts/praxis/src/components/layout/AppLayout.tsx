@@ -61,8 +61,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ];
 
     if (role === 'learner') {
+      items[0] = { label: 'Today', href: '/dashboard', icon: LayoutDashboard };
       items.push({ label: 'My Courses', href: '/courses', icon: BookOpen });
       items.push({ label: 'Credentials', href: '/credentials', icon: Award });
+      items.push({ label: 'My Coach', href: '/coach-settings', icon: Settings });
     }
 
     if (role === 'coach') {

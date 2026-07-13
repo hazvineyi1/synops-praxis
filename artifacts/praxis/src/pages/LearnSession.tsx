@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useGetSession, useGetModule } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -186,35 +187,50 @@ export function LearnSession({ params }: { params: { sessionId: string } }) {
             </div>
           )}
 
-          {localTurns.map((turn, idx) => (
-            <div 
-              key={turn.id || idx} 
-              className={cn(
-                "flex w-full",
-                turn.role === 'learner' ? "justify-end" : "justify-start"
-              )}
-            >
-              <div 
+          <AnimatePresence initial={false}>
+            {localTurns.map((turn, idx) => (
+              <motion.div
+                key={turn.id || idx}
+                initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
                 className={cn(
-                  "max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-4 text-[15px] leading-relaxed",
-                  turn.role === 'learner' 
-                    ? "bg-primary text-primary-foreground rounded-tr-sm" 
-                    : "bg-card border border-border shadow-sm rounded-tl-sm text-foreground"
+                  "flex w-full",
+                  turn.role === 'learner' ? "justify-end" : "justify-start"
                 )}
               >
-                {turn.content}
-              </div>
-            </div>
-          ))}
+                <div 
+                  className={cn(
+                    "max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-4 text-[15px] leading-relaxed whitespace-pre-wrap",
+                    turn.role === 'learner' 
+                      ? "bg-primary text-primary-foreground rounded-tr-sm" 
+                      : "bg-card border border-border shadow-sm rounded-tl-sm text-foreground"
+                  )}
+                >
+                  {turn.content}
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
 
           {/* Streaming active message */}
-          {isStreaming && streamingText && (
-             <div className="flex w-full justify-start animate-in fade-in">
-              <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-4 text-[15px] leading-relaxed bg-card border border-border shadow-sm rounded-tl-sm text-foreground relative">
-                {streamingText}
-                <span className="inline-block w-1.5 h-4 bg-primary ml-1 animate-pulse align-middle"></span>
+          {isStreaming && (
+             <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex w-full justify-start"
+             >
+              <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-4 text-[15px] leading-relaxed whitespace-pre-wrap bg-card border border-border shadow-sm rounded-tl-sm text-foreground relative">
+                {streamingText || (
+                  <span className="inline-flex gap-1 items-center">
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-2 w-2 rounded-full bg-primary/40 animate-bounce" />
+                  </span>
+                )}
+                {streamingText && <span className="inline-block w-1.5 h-4 bg-primary ml-1 animate-pulse align-middle" />}
               </div>
-            </div>
+            </motion.div>
           )}
 
           {/* Mastery Achieved Banner */}

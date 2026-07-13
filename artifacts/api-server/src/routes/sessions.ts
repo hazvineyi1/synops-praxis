@@ -5,17 +5,24 @@ import {
   dialogueTurnsTable,
   modulesTable,
   beatsTable,
-  evidenceRecordsTable,
   submissionsTable,
-  credentialsTable,
+  enrolmentsTable,
 } from "@workspace/db";
-import { eq, asc, desc, sql } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
+import {
+  buildSocraticSystemPrompt,
+  ensureQuestion,
+  generateSocraticTurn,
+  SOCRATIC_MODEL,
+  type SocraticContext,
+} from "../lib/socraticEngine";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { applyCheckpoint } from "../lib/mastery";
 
 const router = Router();
 
-const MASTERY_THRESHOLD = 0.8;
+const PROMPT_BUDGET = 8;
 
 function toSessionResponse(s: typeof sessionsTable.$inferSelect) {
   return {
@@ -44,6 +51,33 @@ router.get("/sessions", requireAuth, async (req, res) => {
 // POST /sessions
 router.post("/sessions", requireAuth, async (req, res) => {
   const { moduleId } = req.body;
+  if (!moduleId || typeof moduleId !== "string") {
+    res.status(400).json({ error: "moduleId required" });
+    return;
+  }
+
+  // Authorization: the module must exist and be published, and the learner
+  // must have an active enrolment in its course. This keeps credentials
+  // trustworthy — you can only earn one for content you are enrolled in.
+  const module = await db.query.modulesTable.findFirst({ where: eq(modulesTable.id, moduleId) });
+  if (!module || module.status !== "published") {
+    res.status(404).json({ error: "Module not available" });
+    return;
+  }
+  if (module.courseId) {
+    const enrolment = await db.query.enrolmentsTable.findFirst({
+      where: and(
+        eq(enrolmentsTable.userId, req.userId!),
+        eq(enrolmentsTable.courseId, module.courseId),
+        eq(enrolmentsTable.status, "active")
+      ),
+    });
+    if (!enrolment) {
+      res.status(403).json({ error: "Not enrolled in this course" });
+      return;
+    }
+  }
+
   // Get first beat
   const [firstBeat] = await db
     .select()
@@ -63,9 +97,33 @@ router.post("/sessions", requireAuth, async (req, res) => {
     })
     .returning();
 
-  // Create initial tutor greeting
+  // Create the opening turn using the hardened Socratic engine's opening
+  // rule so it honours the learner's coach personality and accommodations.
   if (firstBeat) {
-    const tutorOpening = buildTutorOpening(firstBeat);
+    const learner = req.dbUser!;
+    let tutorOpening: string;
+    try {
+      const ctx: SocraticContext = {
+        beatTitle: firstBeat.title,
+        beatType: firstBeat.type,
+        narration: firstBeat.narration,
+        scenario: firstBeat.scenario,
+        bulletPoints: firstBeat.bulletPoints,
+        learnerName: learner.firstName,
+        personality: learner.coachPersonality,
+        learningStyle: learner.learningStyle,
+        accommodations: learner.accommodations,
+        turnCount: 0,
+        promptBudget: PROMPT_BUDGET,
+      };
+      tutorOpening = await generateSocraticTurn(
+        ctx,
+        [{ role: "user", content: "I'm ready to begin. Ask me the first question." }],
+        true
+      );
+    } catch {
+      tutorOpening = `Let's think about this together. ${firstBeat.narration} In your own words, how would you apply this idea in your work tomorrow?`;
+    }
     await db.insert(dialogueTurnsTable).values({
       sessionId: session.id,
       role: "tutor",
@@ -81,22 +139,13 @@ router.post("/sessions", requireAuth, async (req, res) => {
   res.status(201).json(toSessionResponse(session));
 });
 
-function buildTutorOpening(beat: typeof beatsTable.$inferSelect): string {
-  if (beat.type === "scenario" && beat.scenario) {
-    return `${beat.scenario}\n\nWhat would you do in this situation, and why?`;
-  }
-  if (beat.type === "title_card") {
-    return `Welcome. Today we're exploring: **${beat.title}**.\n\n${beat.narration}\n\nBefore we dive in — what do you already know about this topic, and what question would you most want answered by the end?`;
-  }
-  return `Let's think about this together.\n\n${beat.narration}\n\nIn your own words, how would you apply this idea in your work tomorrow?`;
-}
-
 // GET /sessions/:sessionId
 router.get("/sessions/:sessionId", requireAuth, async (req, res) => {
   const session = await db.query.sessionsTable.findFirst({
     where: eq(sessionsTable.id, req.params.sessionId),
   });
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.userId !== req.userId) { res.status(404).json({ error: "Not found" }); return; }
 
   const turns = await db
     .select()
@@ -164,25 +213,22 @@ router.post("/sessions/:sessionId/respond", requireAuth, async (req, res) => {
   res.flushHeaders();
 
   try {
-    const beatContext = beat
-      ? `Current beat: "${beat.title}" (${beat.type})\nContent: ${beat.narration}${beat.scenario ? `\nScenario: ${beat.scenario}` : ""}${beat.bulletPoints?.length ? `\nKey points: ${beat.bulletPoints.join("; ")}` : ""}`
-      : "";
-
-    const systemPrompt = `You are a Socratic tutor using the philosophy of Knowles' andragogy. Your role is to guide learners to insights through questioning, never to lecture or simply tell them the answer.
-
-Core principles:
-1. NEVER say "correct" or "incorrect" — every response opens a new line of inquiry
-2. If the learner's reasoning is flawed, ask a question that exposes the flaw gently (e.g. "Before we go further, let's test that idea...")
-3. If the learner's reasoning is sound, deepen it (e.g. "Good instinct — now what happens when...")
-4. Responses must be grounded STRICTLY in the source content. Do not introduce unrelated concepts.
-5. Keep responses to 2-4 sentences maximum — this is dialogue, not a lecture
-6. Use workplace-authentic South African English
-7. End EVERY response with a single focused question
-8. Do NOT use bullet points or lists — pure dialogue only
-
-${beatContext}
-
-Assess the learner's demonstrated understanding in your response. If they show genuine comprehension, their mastery improves. If reasoning is shallow or wrong, probe deeper.`;
+    const learner = req.dbUser!;
+    const exchangeCount = Math.floor(Number(session.turnCount) / 2);
+    const socraticCtx: SocraticContext = {
+      beatTitle: beat?.title,
+      beatType: beat?.type,
+      narration: beat?.narration,
+      scenario: beat?.scenario,
+      bulletPoints: beat?.bulletPoints,
+      learnerName: learner.firstName,
+      personality: learner.coachPersonality,
+      learningStyle: learner.learningStyle,
+      accommodations: learner.accommodations,
+      turnCount: exchangeCount,
+      promptBudget: PROMPT_BUDGET,
+    };
+    const systemPrompt = buildSocraticSystemPrompt(socraticCtx, false);
 
     const chatMessages: { role: "user" | "assistant"; content: string }[] = [
       ...historyOrdered.map(t => ({
@@ -194,8 +240,8 @@ Assess the learner's demonstrated understanding in your response. If they show g
 
     let fullResponse = "";
     const stream = anthropic.messages.stream({
-      model: "claude-sonnet-4-6",
-      max_tokens: 8192,
+      model: SOCRATIC_MODEL,
+      max_tokens: 1024,
       system: systemPrompt,
       messages: chatMessages,
     });
@@ -210,11 +256,25 @@ Assess the learner's demonstrated understanding in your response. If they show g
       }
     }
 
-    // Estimate mastery delta based on response quality heuristics
-    // In production: use a separate scoring pass
-    const masteryDelta = estimateMasteryDelta(response, fullResponse);
-    const currentMastery = Number(session.masteryScore);
-    const newMastery = Math.min(1, currentMastery + masteryDelta);
+    // Guarantee the turn ends on a question so the dialogue never stalls.
+    const cleaned = ensureQuestion(fullResponse);
+    if (cleaned !== fullResponse) {
+      const tail = cleaned.slice(fullResponse.length);
+      if (tail) res.write(`data: ${JSON.stringify({ content: tail })}\n\n`);
+      fullResponse = cleaned;
+    }
+
+    // Grade + SM-2 + credential issuance (shared with the WhatsApp channel).
+    const result = await applyCheckpoint({
+      userId: req.userId!,
+      session,
+      socraticCtx,
+      learnerResponse: response,
+      historyOrdered,
+      tutorReply: fullResponse,
+    });
+
+    const masteryDelta = result.newMastery - Number(session.masteryScore);
 
     // Save tutor turn
     await db.insert(dialogueTurnsTable).values({
@@ -222,36 +282,11 @@ Assess the learner's demonstrated understanding in your response. If they show g
       role: "tutor",
       content: fullResponse,
       beatId: beatId ?? null,
-      masteryDelta: masteryDelta.toString(),
+      reasoning: result.reasoning,
+      masteryDelta: masteryDelta.toFixed(4),
     });
 
-    // Update session
-    const nowMastered = newMastery >= MASTERY_THRESHOLD;
-    await db
-      .update(sessionsTable)
-      .set({
-        masteryScore: newMastery.toString(),
-        turnCount: sql`${sessionsTable.turnCount} + 2`,
-        status: nowMastered ? "mastered" : "active",
-        completedAt: nowMastered ? new Date() : null,
-      })
-      .where(eq(sessionsTable.id, sessionId));
-
-    // Record evidence
-    await db.insert(evidenceRecordsTable).values({
-      userId: req.userId!,
-      sessionId,
-      type: "session_response",
-      description: `Learner response: "${response.slice(0, 100)}..."`,
-      score: masteryDelta.toString(),
-    });
-
-    // If mastered, issue PraxisMark credential
-    if (nowMastered && !session.completedAt) {
-      await issueCredential(req.userId!, session, beat);
-    }
-
-    res.write(`data: ${JSON.stringify({ done: true, masteryScore: newMastery, mastered: nowMastered })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, masteryScore: result.newMastery, grade: result.grade, mastered: result.mastered })}\n\n`);
     res.end();
   } catch (err) {
     req.log.error({ err }, "Session respond error");
@@ -260,47 +295,13 @@ Assess the learner's demonstrated understanding in your response. If they show g
   }
 });
 
-function estimateMasteryDelta(learnerResponse: string, tutorResponse: string): number {
-  // Simple heuristic — in production use a scoring LLM pass
-  const words = learnerResponse.trim().split(/\s+/).length;
-  if (words < 5) return 0.02; // Too brief — shallow
-  if (words < 20) return 0.06;
-  if (words < 50) return 0.10;
-  return 0.14; // Detailed response
-}
-
-async function issueCredential(userId: string, session: typeof sessionsTable.$inferSelect, beat: any) {
-  try {
-    const mod = await db.query.modulesTable.findFirst({
-      where: eq(modulesTable.id, session.moduleId),
-    });
-    if (!mod) return;
-
-    const decayDate = new Date();
-    decayDate.setMonth(decayDate.getMonth() + 12); // 12-month validity
-
-    await db.insert(credentialsTable).values({
-      userId,
-      moduleId: session.moduleId,
-      moduleTitle: mod.title,
-      partnerId: "platform",
-      partnerName: "Synops Praxis",
-      masteryScore: session.masteryScore,
-      evidenceSummary: `Achieved mastery through ${session.turnCount} Socratic exchanges`,
-      decayDate,
-      status: "valid",
-    });
-  } catch (_err) {
-    // Non-fatal
-  }
-}
-
 // GET /sessions/:sessionId/progress
 router.get("/sessions/:sessionId/progress", requireAuth, async (req, res) => {
   const session = await db.query.sessionsTable.findFirst({
     where: eq(sessionsTable.id, req.params.sessionId),
   });
   if (!session) { res.status(404).json({ error: "Not found" }); return; }
+  if (session.userId !== req.userId) { res.status(404).json({ error: "Not found" }); return; }
 
   const [beatCountResult] = await db
     .select({ count: sql<number>`count(*)` })

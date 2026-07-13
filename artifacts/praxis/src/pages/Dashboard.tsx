@@ -1,14 +1,24 @@
 import React from 'react';
-import { useGetMe, useGetAnalyticsOverview, useListPartners, useGetPartnerStats, useListOrganisations, useListCourses, useListCredentials, useGetActivityFeed } from '@workspace/api-client-react';
+import { useGetMe, useGetAnalyticsOverview, useListPartners, useGetPartnerStats, useListOrganisations } from '@workspace/api-client-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Users, BookOpen, Award, TrendingUp, Building, FileText } from 'lucide-react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
+import { CoachHome } from '@/pages/CoachHome';
 
 export function Dashboard() {
   const { data: user } = useGetMe();
 
   if (!user) return null;
+
+  // Learners get the coach-led "spine" home — the coach leads, no blank dashboard.
+  if (user.role === 'learner') {
+    return (
+      <div className="animate-in fade-in duration-500">
+        <CoachHome firstName={user.firstName} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -20,7 +30,6 @@ export function Dashboard() {
       {user.role === 'super_admin' && <SuperAdminDashboard />}
       {user.role === 'partner_admin' && <PartnerAdminDashboard partnerId={user.partnerId!} />}
       {user.role === 'org_admin' && <OrgAdminDashboard />}
-      {user.role === 'learner' && <LearnerDashboard />}
       {user.role === 'coach' && <CoachDashboard />}
     </div>
   );
@@ -135,99 +144,6 @@ function OrgAdminDashboard() {
           Diagnostic charts rendering...
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-function LearnerDashboard() {
-  const { data: courses } = useListCourses();
-  const { data: credentials } = useListCredentials();
-  const { data: activity } = useGetActivityFeed();
-
-  return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-serif font-semibold">My Courses</h2>
-              <Link href="/courses" className="text-sm text-primary font-medium hover:underline">View All</Link>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {courses?.slice(0, 2).map(course => (
-                <Card key={course.id} className="group hover:shadow-md transition-shadow">
-                  <div className="aspect-video bg-muted rounded-t-xl overflow-hidden">
-                    {course.thumbnailUrl && <img src={course.thumbnailUrl} alt="" className="w-full h-full object-cover" />}
-                  </div>
-                  <CardHeader>
-                    <CardTitle className="line-clamp-1">{course.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Link href={`/courses/${course.id}`}>
-                      <Button className="w-full group-hover:bg-primary/90">Continue Learning</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
-              {!courses?.length && <p className="text-muted-foreground">No active courses. Check the catalog.</p>}
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-serif font-semibold">Recent Credentials</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {credentials?.slice(0, 2).map(cred => (
-                <Card key={cred.id} className="bg-card">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center gap-2 mb-2 text-primary">
-                      <Award className="h-5 w-5" />
-                      <span className="text-xs font-semibold uppercase tracking-wider">PraxisMark</span>
-                    </div>
-                    <CardTitle className="text-lg">{cred.moduleTitle || 'Module'}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex justify-between items-end">
-                      <div className="space-y-1 text-sm text-muted-foreground">
-                        <p>Score: {(cred.masteryScore || 0) * 100}%</p>
-                        <p>Valid until: {new Date(cred.decayDate).toLocaleDateString()}</p>
-                      </div>
-                      <Link href={`/credentials`}>
-                        <Button variant="secondary" size="sm">View</Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {activity?.slice(0, 5).map(event => (
-                  <div key={event.id} className="flex gap-4 relative">
-                    <div className="absolute left-[11px] top-6 bottom-[-24px] w-px bg-border last:hidden" />
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 z-10">
-                      <div className="h-2 w-2 rounded-full bg-primary" />
-                    </div>
-                    <div className="pb-2">
-                      <p className="text-sm font-medium">{event.description}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{new Date(event.createdAt).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }

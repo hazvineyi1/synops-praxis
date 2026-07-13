@@ -20,3 +20,5 @@ export * from "./groups";
 export * from "./notifications";
 export * from "./interactive_video";
 export * from "./media";
+export * from "./spaced_repetition";
+export * from "./whatsapp";

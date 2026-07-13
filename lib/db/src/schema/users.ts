@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -8,6 +8,13 @@ export const userRoleEnum = pgEnum("user_role", [
   "org_admin",
   "coach",
   "learner",
+]);
+
+export const coachPersonalityEnum = pgEnum("coach_personality", [
+  "socratic_mentor",
+  "drill_sergeant",
+  "warm_encourager",
+  "strategic_analyst",
 ]);
 
 export const usersTable = pgTable("users", {
@@ -20,6 +27,13 @@ export const usersTable = pgTable("users", {
   role: userRoleEnum("role").notNull().default("learner"),
   partnerId: text("partner_id"),
   organisationId: text("organisation_id"),
+  // Learner personalisation (Coach-inspired)
+  coachPersonality: coachPersonalityEnum("coach_personality").notNull().default("socratic_mentor"),
+  learningStyle: text("learning_style"), // VARK: visual | auditory | kinesthetic | reading_writing
+  accommodations: text("accommodations").array().notNull().default([]),
+  // WhatsApp two-way channel
+  phone: text("phone"),
+  whatsappOptIn: boolean("whatsapp_opt_in").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
