@@ -32,7 +32,7 @@ export function Home() {
               Socratic learning for the modern workforce.
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-lg leading-relaxed">
-              Equip your organization with the reasoning skills required for mastery. A fully white-labeled platform designed for South African enterprise sponsors.
+              Equip your organization with the reasoning skills required for mastery. A platform built for South African enterprise skills development.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Link href="/sign-up">
@@ -93,8 +93,8 @@ export function Home() {
                 <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
                   <Building2 className="h-6 w-6" />
                 </div>
-                <h3 className="text-xl font-serif font-bold">100% White-labeled</h3>
-                <p className="text-muted-foreground leading-relaxed">Your brand, your domain, your colors. We are the invisible engine powering your enterprise workforce programs.</p>
+                <h3 className="text-xl font-serif font-bold">Enterprise-Ready</h3>
+                <p className="text-muted-foreground leading-relaxed">Built for large organisations — multi-tenant, role-based, and designed to scale across divisions, cohorts, and partner networks.</p>
               </div>
             </div>
           </div>
