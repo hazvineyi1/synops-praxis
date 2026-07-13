@@ -10,15 +10,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { 
   BookOpen, ClipboardList, MessageSquare, Megaphone, BarChart2, 
-  Calendar, FileText, Users, UsersRound, Plus, ChevronRight, Pin,
+  Calendar, FileText, Users, UsersRound, Plus, ChevronRight, ChevronDown, Pin,
   CheckCircle, Clock, AlertCircle, Play
 } from 'lucide-react';
 import { InteractiveVideoPlayer } from '@/components/InteractiveVideoPlayer';
 
 // --- Types ---
 interface Course { id: string; title: string; description: string; status: string; competencyTags: string[]; nqfLevel?: number; }
-interface Module { id: string; title: string; order: number; status: string; estimatedMinutes: number; beatCount: number; beats?: Beat[]; }
-interface Beat { id: string; type: string; title: string; order: number; videoUrl?: string; }
+interface Module { id: string; title: string; description?: string; order: number; status: string; estimatedMinutes: number; beatCount: number; beats?: Beat[]; }
+interface Beat { id: string; type: string; title: string; order: number; videoUrl?: string; narration?: string | null; bulletPoints?: string[] | null; scenario?: string | null; }
 interface Assignment { id: string; title: string; description?: string; dueDate?: string; pointsPossible: number; published: boolean; }
 interface Discussion { id: string; title: string; body: string; isPinned?: boolean; replyCount: number; createdAt: string; author?: { firstName: string; lastName: string; }; }
 interface Announcement { id: string; title: string; body: string; pinned?: boolean; createdAt: string; author?: { firstName: string; lastName: string; }; }
@@ -65,6 +65,97 @@ function formatDate(d?: string) {
 function isOverdue(dueDate?: string) {
   if (!dueDate) return false;
   return new Date(dueDate) < new Date();
+}
+
+const BEAT_TYPE_COLOR: Record<string, string> = {
+  video: 'bg-blue-500',
+  scenario: 'bg-amber-500',
+  points: 'bg-emerald-500',
+  compare: 'bg-violet-500',
+  title_card: 'bg-primary',
+  close: 'bg-rose-500',
+  diagram: 'bg-cyan-500',
+};
+
+function BeatContent({ beat, onWatch }: { beat: Beat; onWatch: (b: Beat) => void }) {
+  return (
+    <div className="rounded-md border border-border/60 p-3">
+      <div className="flex items-center gap-2">
+        <span className={cn('h-2 w-2 rounded-full flex-shrink-0', BEAT_TYPE_COLOR[beat.type] ?? 'bg-primary/50')} />
+        <span className="text-sm font-medium text-foreground flex-1">{beat.title}</span>
+        <Badge variant="outline" className="text-xs capitalize">{beat.type.replace('_', ' ')}</Badge>
+        {beat.type === 'video' && beat.videoUrl && (
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => onWatch(beat)}>
+            <Play className="h-3 w-3" /> Watch
+          </Button>
+        )}
+      </div>
+      {beat.narration && <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{beat.narration}</p>}
+      {beat.scenario && (
+        <p className="text-sm text-foreground mt-2 leading-relaxed border-l-2 border-amber-400 pl-3 italic">{beat.scenario}</p>
+      )}
+      {beat.bulletPoints && beat.bulletPoints.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {beat.bulletPoints.map((pt, i) => (
+            <li key={i} className="text-sm text-muted-foreground flex gap-2">
+              <span className="text-primary/60 flex-shrink-0">•</span>
+              <span>{pt}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ModuleRow({ mod, onWatch }: { mod: Module; onWatch: (b: Beat) => void }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ['module-detail', mod.id],
+    queryFn: () => apiFetch<Module>(`/modules/${mod.id}`),
+    enabled: open,
+  });
+  const beats = data?.beats ?? [];
+
+  return (
+    <Card>
+      <button type="button" onClick={() => setOpen((o) => !o)} className="w-full text-left" aria-expanded={open}>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <ChevronDown className={cn('h-4 w-4 flex-shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground mb-1">Module {mod.order}</div>
+                <CardTitle className="text-base truncate">{mod.title}</CardTitle>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-muted-foreground flex-shrink-0">
+              <span>{mod.beatCount} {mod.beatCount === 1 ? 'beat' : 'beats'}</span>
+              <span className="hidden sm:inline">{mod.estimatedMinutes}min</span>
+              <Badge variant={mod.status === 'published' ? 'default' : 'secondary'}>{mod.status}</Badge>
+            </div>
+          </div>
+        </CardHeader>
+      </button>
+      {open && (
+        <CardContent className="pt-0">
+          {isLoading && <div className="space-y-2">{[1, 2].map((i) => <Skeleton key={i} className="h-16" />)}</div>}
+          {!isLoading && beats.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-6 border border-dashed border-border rounded-md">
+              This module has no content yet.
+            </div>
+          )}
+          {beats.length > 0 && (
+            <div className="space-y-2">
+              {beats.map((beat) => (
+                <BeatContent key={beat.id} beat={beat} onWatch={onWatch} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
 }
 
 export function CourseDetail() {
@@ -231,39 +322,9 @@ export function CourseDetail() {
         {activeTab === 'modules' && (
           <div className="space-y-4">
             {!modules && <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-24" />)}</div>}
+            {modules?.length === 0 && <div className="text-center text-muted-foreground py-12">No modules yet.</div>}
             {modules?.map((mod) => (
-              <Card key={mod.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-muted-foreground mb-1">Module {mod.order}</div>
-                      <CardTitle className="text-base">{mod.title}</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span>{mod.estimatedMinutes}min</span>
-                      <Badge variant={mod.status === 'published' ? 'default' : 'secondary'}>{mod.status}</Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                {mod.beats && mod.beats.length > 0 && (
-                  <CardContent className="pt-0">
-                    <div className="space-y-1.5">
-                      {mod.beats.map((beat) => (
-                        <div key={beat.id} className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 group">
-                          <div className={cn("h-2 w-2 rounded-full flex-shrink-0", beat.type === 'video' ? 'bg-blue-500' : beat.type === 'scenario' ? 'bg-amber-500' : 'bg-primary/50')} />
-                          <span className="text-sm flex-1 text-foreground">{beat.title}</span>
-                          <Badge variant="outline" className="text-xs">{beat.type.replace('_', ' ')}</Badge>
-                          {beat.type === 'video' && beat.videoUrl && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setIvBeat(beat)}>
-                              <Play className="h-3 w-3" /> Watch
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
+              <ModuleRow key={mod.id} mod={mod} onWatch={setIvBeat} />
             ))}
           </div>
         )}
