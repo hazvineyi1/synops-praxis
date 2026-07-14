@@ -75,6 +75,7 @@ export * from './partnerUpdateStatus';
 export * from './platformStats';
 export * from './presessionBrief';
 export * from './publishDraftInput';
+export * from './publishDraftInputLessonType';
 export * from './scriptDraft';
 export * from './scriptDraftStatus';
 export * from './scriptDraftUpdate';

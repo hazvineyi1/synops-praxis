@@ -28,6 +28,8 @@ interface Group { id: string; name: string; description?: string; members: { use
 interface Page { id: string; title: string; slug: string; body: string; published: boolean; updatedAt: string; frontPage?: boolean; author?: { firstName: string; lastName: string; }; }
 interface Event { id: string; title: string; type: string; startDate: string; color?: string; linkedAssignmentId?: string; }
 interface Enrolment { id: string; status: string; }
+interface ModuleProgress { moduleId: string; title: string; order: number; viewedBeats: number; totalBeats: number; percent: number; complete: boolean; }
+interface CourseProgress { courseId: string; viewedBeats: number; totalBeats: number; percent: number; modules: ModuleProgress[]; }
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: BookOpen },
@@ -136,6 +138,12 @@ export function CourseDetail() {
   const setTab = (tab: string) => navigate(`/courses/${courseId}?tab=${tab}`);
 
   const { data: course, isLoading: courseLoading } = useQuery({ queryKey: ['course', courseId], queryFn: () => apiFetch<Course>(`/courses/${courseId}`) });
+  // Real completion, computed from beats the learner has actually viewed.
+  const { data: progress } = useQuery({
+    queryKey: ['course-progress', courseId],
+    queryFn: () => apiFetch<CourseProgress>(`/progress/course/${courseId}`),
+    enabled: !!courseId,
+  });
   const { data: modules } = useQuery({ queryKey: ['modules', courseId], queryFn: () => apiFetch<Module[]>(`/courses/${courseId}/modules`), enabled: activeTab === 'modules' || activeTab === 'overview' });
   const { data: assignments } = useQuery({ queryKey: ['assignments', courseId], queryFn: () => apiFetch<Assignment[]>(`/courses/${courseId}/assignments`), enabled: activeTab === 'assignments' });
   const { data: discussions } = useQuery({ queryKey: ['discussions', courseId], queryFn: () => apiFetch<Discussion[]>(`/courses/${courseId}/discussions`), enabled: activeTab === 'discussions' });
@@ -192,6 +200,55 @@ export function CourseDetail() {
         )}
         {enrolment && <Badge variant="outline" className="text-green-600 border-green-600">Enrolled</Badge>}
       </div>
+
+      {/* Real completion, from beats actually viewed. Only shown to enrolled learners:
+          an unenrolled visitor browsing the catalog has no progress to speak of. */}
+      {enrolment && progress && progress.totalBeats > 0 && (
+        <div className="mb-6 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-foreground">
+              {progress.percent >= 100 ? 'Course complete' : 'Your progress'}
+            </span>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {progress.viewedBeats} of {progress.totalBeats} steps · {progress.percent}%
+            </span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all',
+                progress.percent >= 100 ? 'bg-green-600' : 'bg-primary',
+              )}
+              style={{ width: `${progress.percent}%` }}
+              role="progressbar"
+              aria-valuenow={progress.percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Course completion"
+            />
+          </div>
+          {progress.modules?.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {progress.modules.map((m) => (
+                <span
+                  key={m.moduleId}
+                  title={`${m.title}: ${m.viewedBeats}/${m.totalBeats}`}
+                  className={cn(
+                    'text-[11px] px-2 py-0.5 rounded-full border',
+                    m.complete
+                      ? 'border-green-600/40 bg-green-600/10 text-green-700'
+                      : m.percent > 0
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border text-muted-foreground',
+                  )}
+                >
+                  {m.complete ? '✓ ' : ''}{m.title}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tab bar */}
       <div className="border-b border-border mb-6 overflow-x-auto">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoute, useLocation, useSearch } from 'wouter';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -771,6 +771,7 @@ export function ModuleViewer() {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   const { data: mod, isLoading } = useQuery({
     queryKey: ['module-detail', moduleId],
@@ -782,6 +783,30 @@ export function ModuleViewer() {
     queryKey: ['course-summary', courseId],
     queryFn: () => apiFetch<CourseSummary>(`/courses/${courseId}`),
     enabled: !!courseId,
+  });
+
+  // Persisted progress. Previously "completed" lived only in React state, so it was
+  // wiped on every refresh and a learner's progress was fiction. Seed from the server.
+  const { data: serverProgress } = useQuery({
+    queryKey: ['module-progress', moduleId],
+    queryFn: () => apiFetch<{ viewedBeatIds: string[] }>(`/progress/module/${moduleId}`),
+    enabled: !!moduleId,
+  });
+
+  useEffect(() => {
+    if (serverProgress?.viewedBeatIds?.length) {
+      setCompletedIds(prev => new Set([...prev, ...serverProgress.viewedBeatIds]));
+    }
+  }, [serverProgress]);
+
+  const markBeatViewed = useMutation({
+    mutationFn: (vars: { beatId: string; secondsSpent: number }) =>
+      apiFetch('/progress/beat', { method: 'POST', body: JSON.stringify(vars) }),
+    onSuccess: () => {
+      // Course-level completion (and possibly enrolment completion) just changed.
+      queryClient.invalidateQueries({ queryKey: ['course-progress', courseId] });
+      queryClient.invalidateQueries({ queryKey: ['my-progress'] });
+    },
   });
 
   const allBeats = mod?.beats ?? [];
@@ -802,6 +827,32 @@ export function ModuleViewer() {
   useEffect(() => {
     if (modeParam) mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentIndex, modeParam]);
+
+  // Record the beat as viewed, and bank the dwell time when the learner leaves it.
+  //
+  // We mark on ARRIVAL, not on "Next". The old code only marked a beat complete when
+  // you clicked Next, which meant the LAST beat of a module was never marked -- so a
+  // learner could finish a module and still be stuck below 100%, and the enrolment
+  // could never complete. Marking on arrival fixes that; the endpoint is idempotent
+  // so re-viewing costs nothing.
+  const currentBeatId = currentBeat?.id;
+  useEffect(() => {
+    if (!currentBeatId || !modeParam) return;
+
+    markBeatViewed.mutate({ beatId: currentBeatId, secondsSpent: 0 });
+    setCompletedIds(prev => new Set([...prev, currentBeatId]));
+
+    const enteredAt = Date.now();
+    return () => {
+      const seconds = Math.round((Date.now() - enteredAt) / 1000);
+      // Ignore instant fly-bys; the API clamps the upper bound so an abandoned tab
+      // can't inflate training hours.
+      if (seconds > 2) {
+        markBeatViewed.mutate({ beatId: currentBeatId, secondsSpent: seconds });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBeatId, modeParam]);
 
   // ── Hub mode: no ?mode= param → show the activity picker ─────────────────
   if (!modeParam) {

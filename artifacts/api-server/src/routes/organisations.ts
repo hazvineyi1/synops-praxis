@@ -35,7 +35,9 @@ function toUserResponse(u: typeof usersTable.$inferSelect) {
 // GET /organisations
 router.get("/organisations", requireAuth, async (req, res) => {
   const user = req.dbUser!;
-  let orgs;
+  // Explicitly typed: `let orgs;` left TS unable to infer the type across the
+  // branches (implicit any[]), which silently disabled type checking on the rows.
+  let orgs: (typeof organisationsTable.$inferSelect)[];
   if (user.role === "super_admin") {
     orgs = await db.select().from(organisationsTable);
   } else if (user.partnerId) {
@@ -103,13 +105,19 @@ router.post("/organisations/:orgId/members", requireAuth, async (req, res) => {
     where: eq(usersTable.email, email),
   });
   if (!member) {
-    // Create placeholder — real invite flow would use Clerk invitations
+    // A real invite. Previously this minted a fake `clerkId: placeholder_<timestamp>`
+    // purely to satisfy a NOT NULL column -- which meant invited users were
+    // indistinguishable from real ones and could never actually sign in.
+    //
+    // Now: status "invited", no password. They become active by setting a password
+    // through a reset link (issued from the platform console, or emailed once a mail
+    // provider is configured).
     const [created] = await db
       .insert(usersTable)
       .values({
-        clerkId: `placeholder_${Date.now()}`,
         email,
         role,
+        status: "invited",
         partnerId: user.partnerId,
         organisationId: req.params.orgId,
       })

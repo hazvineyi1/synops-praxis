@@ -4,24 +4,19 @@
  */
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db";
+import { usersTable, authSessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { requireAuth } from "../middlewares/requireAuth";
-import { DEV_SESSION_COOKIE } from "../middlewares/requireAuth";
+import { newSessionToken, sessionExpiry, cookieOptions, SESSION_COOKIE } from "../lib/auth";
 
 const router = Router();
 
 const isDev = process.env.NODE_ENV !== "production";
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  maxAge: 24 * 60 * 60 * 1000, // 1 day
-  path: "/",
-};
-
-// POST /dev/impersonate — set a dev session cookie for a seed user (no Clerk required)
-router.post("/dev/impersonate", async (req, res) => {
+// POST /dev/impersonate — sign in as any seed user without a password (dev only).
+// Now that requireAuth reads a real auth_session, this mints one instead of the old
+// raw-userId cookie. Still hard-gated to non-production. Name kept for DevLogin.tsx.
+async function devLogin(req: any, res: any) {
   if (!isDev) { res.status(404).json({ error: "Not found" }); return; }
   const { userId } = req.body;
   if (!userId) { res.status(400).json({ error: "userId required" }); return; }
@@ -29,24 +24,61 @@ router.post("/dev/impersonate", async (req, res) => {
   const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
   if (!user) { res.status(404).json({ error: "User not found" }); return; }
 
-  res.cookie(DEV_SESSION_COOKIE, userId, COOKIE_OPTS);
+  const token = newSessionToken();
+  await db.insert(authSessionsTable).values({ token, userId: user.id, expiresAt: sessionExpiry() });
+  res.cookie(SESSION_COOKIE, token, cookieOptions());
   res.json({ ok: true, user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName } });
-});
+}
 
-// DELETE /dev/impersonate — clear the dev session cookie
-router.delete("/dev/impersonate", (req, res) => {
-  if (!isDev) { res.status(404).json({ error: "Not found" }); return; }
-  res.clearCookie(DEV_SESSION_COOKIE, { path: "/" });
-  res.json({ ok: true });
-});
+router.post("/dev/impersonate", devLogin);
+router.post("/dev/login", devLogin);
 
-// GET /dev/impersonate — check who's currently impersonated
+// GET /dev/impersonate — who am I currently signed in as? (null if nobody)
+//
+// DevLogin.tsx calls this on mount. It did not exist, so Express fell through to its
+// HTML 404 handler; the page's `.json()` then threw, the enclosing Promise.all
+// rejected, and the *successful* seed-users response was discarded along with it --
+// leaving a page that finished loading and rendered zero accounts. Unauthenticated is
+// a normal state here, so it answers 200 with null rather than 401.
 router.get("/dev/impersonate", async (req, res) => {
   if (!isDev) { res.status(404).json({ error: "Not found" }); return; }
-  const userId = req.cookies?.[DEV_SESSION_COOKIE];
-  if (!userId) { res.json({ impersonating: null }); return; }
-  const user = await db.query.usersTable.findFirst({ where: eq(usersTable.id, userId) });
-  res.json({ impersonating: user ?? null });
+
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (!token) { res.json({ impersonating: null }); return; }
+
+  const session = await db.query.authSessionsTable.findFirst({
+    where: eq(authSessionsTable.token, token),
+  });
+  if (!session || session.revokedAt || session.expiresAt < new Date()) {
+    res.json({ impersonating: null });
+    return;
+  }
+
+  const user = await db.query.usersTable.findFirst({
+    where: eq(usersTable.id, session.userId),
+  });
+  if (!user) { res.json({ impersonating: null }); return; }
+
+  res.json({
+    impersonating: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    },
+  });
+});
+
+// DELETE /dev/impersonate — sign out (revoke the current session).
+router.delete("/dev/impersonate", async (req, res) => {
+  if (!isDev) { res.status(404).json({ error: "Not found" }); return; }
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (token) {
+    await db.update(authSessionsTable).set({ revokedAt: new Date() }).where(eq(authSessionsTable.token, token));
+  }
+  res.clearCookie(SESSION_COOKIE, { path: "/" });
+  res.json({ ok: true });
 });
 
 // POST /dev/set-role — change your own role (dev only, requires active session)

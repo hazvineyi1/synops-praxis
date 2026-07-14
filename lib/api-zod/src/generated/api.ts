@@ -864,7 +864,8 @@ export const PublishScriptDraftParams = zod.object({
 
 export const PublishScriptDraftBody = zod.object({
   "courseId": zod.string(),
-  "moduleTitle": zod.string().optional()
+  "moduleTitle": zod.string().optional(),
+  "lessonType": zod.enum(['socratic', 'video', 'slides', 'quiz']).optional()
 })
 
 export const PublishScriptDraftResponse = zod.object({

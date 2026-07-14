@@ -360,7 +360,11 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // credentials: "include" so the httpOnly session cookie rides along on every API
+  // call. Without it a cross-origin deployment (frontend and API on different hosts)
+  // would silently drop the cookie and every request would 401 -- and the same-origin
+  // default only papers over that in local dev. A caller-supplied value still wins.
+  const response = await fetch(input, { credentials: "include", ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

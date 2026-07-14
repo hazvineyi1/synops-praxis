@@ -17,9 +17,29 @@ export const coachPersonalityEnum = pgEnum("coach_personality", [
   "strategic_analyst",
 ]);
 
+export const userStatusEnum = pgEnum("user_status", [
+  // Created by an admin but has never set a password / signed in.
+  "invited",
+  "active",
+  // Blocked from signing in. Existing sessions are revoked on suspend.
+  "suspended",
+]);
+
 export const usersTable = pgTable("users", {
   id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-  clerkId: text("clerk_id").notNull().unique(),
+  /**
+   * Legacy Clerk id. NULLABLE now: identity moved in-house (see schema/auth.ts).
+   * Kept so existing rows survive the migration and can still be traced back to
+   * their Clerk origin. New users are created without one.
+   */
+  clerkId: text("clerk_id").unique(),
+  /**
+   * scrypt hash, "salt:derived". Null for users who were invited but have not yet
+   * set a password, and for legacy Clerk users until they reset.
+   */
+  passwordHash: text("password_hash"),
+  status: userStatusEnum("status").notNull().default("active"),
+  lastLoginAt: timestamp("last_login_at"),
   email: text("email").notNull(),
   firstName: text("first_name"),
   lastName: text("last_name"),

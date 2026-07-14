@@ -7,6 +7,21 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 
 const router = Router();
 
+/**
+ * The beat types the DB enum actually accepts. Kept in lockstep with beatTypeEnum in
+ * lib/db/src/schema/beats.ts. AI-generated drafts are validated against this before
+ * insert -- an unknown type would otherwise be rejected by Postgres at publish time.
+ */
+const BEAT_TYPES = [
+  "title_card",
+  "points",
+  "scenario",
+  "compare",
+  "diagram",
+  "close",
+  "video",
+] as const;
+
 function toDraftResponse(d: typeof scriptDraftsTable.$inferSelect) {
   return {
     id: d.id,
@@ -174,20 +189,24 @@ router.post("/studio/scripts/:draftId/publish", requireAuth, async (req, res) =>
     })
     .returning();
 
-  // Create beats from draft
+  // Create beats from draft.
+  //
+  // `beats` comes from an AI-generated script draft, so b.type is untrusted. It is
+  // written straight into a Postgres ENUM column: if the model ever emits a type
+  // outside the enum (or renames one), the INSERT is rejected and the whole module
+  // fails to publish. Coerce to a known beat type instead of trusting the model.
   if (beats.length > 0) {
-    await db.insert(beatsTable).values(
-      beats.map((b: any, i: number) => ({
-        moduleId: mod.id,
-        type: b.type ?? "points",
-        order: i,
-        title: b.title ?? "",
-        narration: b.narration ?? "",
-        bulletPoints: b.bulletPoints ?? [],
-        scenario: b.scenario ?? null,
-        audioStatus: "none",
-      }))
-    );
+    const rows: (typeof beatsTable.$inferInsert)[] = beats.map((b: any, i: number) => ({
+      moduleId: mod.id,
+      type: BEAT_TYPES.includes(b?.type) ? b.type : "points",
+      order: i,
+      title: b?.title ?? "",
+      narration: b?.narration ?? "",
+      bulletPoints: b?.bulletPoints ?? [],
+      scenario: b?.scenario ?? null,
+      audioStatus: "none",
+    }));
+    await db.insert(beatsTable).values(rows);
   }
 
   // Update beat count and course module count

@@ -48,14 +48,50 @@ export function DevLogin() {
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [, setLocation] = useLocation();
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    Promise.all([
-      fetch(`${API}/dev/seed-users`).then((r) => r.json()),
-      fetch(`${API}/dev/impersonate`).then((r) => r.json()),
-    ]).then(([seedUsers, { impersonating: current }]) => {
-      setUsers(seedUsers);
-      if (current) setImpersonating(current.id);
-    }).finally(() => setLoading(false));
+    // These two calls are handled INDEPENDENTLY on purpose.
+    //
+    // They used to be a single Promise.all, which meant one failing request threw away
+    // the other's result: a 404 on /dev/impersonate rejected the whole chain, so the
+    // successfully-fetched account list was never rendered. The page still cleared its
+    // spinner (the .finally ran) and simply showed nothing -- a silent, confusing
+    // failure. Knowing who you are signed in as is a nice-to-have; the account list is
+    // the entire point of the page, so it must not depend on it.
+    let cancelled = false;
+
+    fetch(`${API}/dev/seed-users`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Seed users request failed (${r.status})`);
+        return r.json();
+      })
+      .then((seedUsers: SeedUser[]) => {
+        if (!cancelled) setUsers(seedUsers);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setError(
+            e instanceof Error ? e.message : "Could not reach the API on port 3001.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    fetch(`${API}/dev/impersonate`)
+      .then((r) => (r.ok ? r.json() : { impersonating: null }))
+      .then(({ impersonating: current }) => {
+        if (!cancelled && current) setImpersonating(current.id);
+      })
+      .catch(() => {
+        /* Not signed in yet is the normal case. Never block the list on this. */
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const loginAs = async (userId: string) => {
@@ -86,7 +122,7 @@ export function DevLogin() {
             DEV MODE
           </span>
           <div className="ml-auto text-sm text-slate-400">
-            No Clerk account required — pick any demo user below
+            Pick any demo user below to sign in
           </div>
         </div>
       </div>
@@ -103,6 +139,21 @@ export function DevLogin() {
           <div className="flex items-center gap-3 text-slate-400 py-20 justify-center">
             <div className="h-5 w-5 rounded-full border-2 border-slate-600 border-t-indigo-400 animate-spin" />
             Loading seed accounts…
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-red-800 bg-red-950/40 p-6">
+            <div className="font-semibold text-red-300 mb-1">Could not load accounts</div>
+            <div className="text-sm text-red-400/90 mb-3">{error}</div>
+            <div className="text-sm text-slate-400">
+              Check that the API window is still running on port 3001.
+            </div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="rounded-xl border border-amber-800 bg-amber-950/30 p-6">
+            <div className="font-semibold text-amber-300 mb-1">No seed accounts found</div>
+            <div className="text-sm text-slate-400">
+              The API responded, but the database has no users. Run the seed script.
+            </div>
           </div>
         ) : (
           <div className="space-y-10">

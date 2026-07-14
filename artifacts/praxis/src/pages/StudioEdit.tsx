@@ -9,7 +9,7 @@ import { ArrowLeft, Save, Upload, Play, Loader2, PenTool } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BeatUpdate } from '@workspace/api-client-react/src/generated/api.schemas';
+import { BeatUpdate, PublishDraftInputLessonType } from '@workspace/api-client-react';
 
 export function StudioEdit({ params }: { params: { draftId: string } }) {
   const { draftId } = params;
@@ -25,7 +25,9 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
   const [editingBeatId, setEditingBeatId] = useState<string | null>(null);
   const [beatsForm, setBeatsForm] = useState<Record<string, BeatUpdate>>({});
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-  const [lessonType, setLessonType] = useState<string>('socratic');
+  // Typed to the contract's enum rather than a loose string, so an invalid lesson type
+  // can't reach the API (the DB column is an enum and would reject it at publish time).
+  const [lessonType, setLessonType] = useState<PublishDraftInputLessonType>('socratic');
 
   // Sync draft to local state once loaded
   React.useEffect(() => {
@@ -98,7 +100,10 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <Select value={lessonType} onValueChange={setLessonType}>
+            <Select
+              value={lessonType}
+              onValueChange={(v) => setLessonType(v as PublishDraftInputLessonType)}
+            >
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Lesson type" />
               </SelectTrigger>
@@ -175,7 +180,7 @@ export function StudioEdit({ params }: { params: { draftId: string } }) {
                       
                       {beat.type === 'points' && (
                         <ul className="text-left w-full space-y-2">
-                          {(formState.bulletPoints || beat.bulletPoints || []).map((pt, i) => (
+                          {(formState.bulletPoints || beat.bulletPoints || []).map((pt: string, i: number) => (
                             <li key={i} className="flex items-start gap-2 text-sm text-foreground animate-in slide-in-from-left-4" style={{ animationDelay: `${i * 200}ms`, animationFillMode: 'both' }}>
                               <div className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
                               <span>{pt}</span>

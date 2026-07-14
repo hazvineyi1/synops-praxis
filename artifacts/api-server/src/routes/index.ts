@@ -1,5 +1,7 @@
 import { Router } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
+import platformRouter from "./platform";
 import usersRouter from "./users";
 import partnersRouter from "./partners";
 import organisationsRouter from "./organisations";
@@ -25,12 +27,15 @@ import groupsRouter from "./groups";
 import notificationsRouter from "./notifications";
 import interactiveVideoRouter from "./interactive_video";
 import learnRouter from "./learn";
+import progressRouter from "./progress";
 import whatsappRouter from "./whatsapp";
 import devRouter from "./dev";
 
 const router = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(platformRouter);
 router.use(usersRouter);
 router.use(partnersRouter);
 router.use(organisationsRouter);
@@ -56,6 +61,7 @@ router.use(groupsRouter);
 router.use(notificationsRouter);
 router.use(interactiveVideoRouter);
 router.use(learnRouter);
+router.use(progressRouter);
 router.use(whatsappRouter);
 router.use(devRouter);
 

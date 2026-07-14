@@ -5,8 +5,10 @@
  * Synops Praxis LMS API
  * OpenAPI spec version: 0.1.0
  */
+import type { PublishDraftInputLessonType } from './publishDraftInputLessonType';
 
 export interface PublishDraftInput {
   courseId: string;
   moduleTitle?: string;
+  lessonType?: PublishDraftInputLessonType;
 }

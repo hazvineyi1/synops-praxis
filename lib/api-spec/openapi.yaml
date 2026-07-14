@@ -1745,6 +1745,13 @@ components:
           type: string
         moduleTitle:
           type: string
+        # The server has always read lessonType from this body
+        # (routes/studio.ts: `const { courseId, moduleTitle, lessonType } = req.body`)
+        # but the spec never declared it, so the generated client rejected it and
+        # Studio could not choose a lesson type when publishing.
+        lessonType:
+          type: string
+          enum: [socratic, video, slides, quiz]
 
     # ── Sessions ───────────────────────────────────────────────────────────
 

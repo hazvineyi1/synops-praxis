@@ -6,14 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Loader2, Palette } from 'lucide-react';
-import { BrandThemeUpdate } from '@workspace/api-client-react/src/generated/api.schemas';
+import { BrandThemeInput } from '@workspace/api-client-react';
 
 export function PartnerTheme() {
   const { data: theme, isLoading } = useGetBrandTheme();
   const updateTheme = useUpdateBrandTheme();
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState<Partial<BrandThemeUpdate>>({});
+  const [formData, setFormData] = useState<Partial<BrandThemeInput>>({});
 
   useEffect(() => {
     if (theme) {

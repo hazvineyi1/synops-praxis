@@ -47,3 +47,25 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local dev secrets + state (praxis-api.ps1). .praxis-env holds the Postgres URL,
+# which contains a password -- it must never be committed.
+.praxis-env
+.praxis-db-ready
+.praxis-commit-log.txt
+.praxis-commit-result.txt
+_tmp_*
+typecheck.txt
+codegen.txt
+push.txt
+seed.txt
+
+# Machine-specific dev launcher scripts (hardcode this user's absolute paths).
+praxis-api.ps1
+praxis-web.ps1
+commit-praxis.ps1
+commit-message.txt
+START-API.bat
+START-WEB.bat
+COMMIT-PRAXIS.bat
+COMMIT-NOW.bat

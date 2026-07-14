@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, Send, Sparkles } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
-import { BeatType } from '@workspace/api-client-react/src/generated/api.schemas';
+import { BeatType } from '@workspace/api-client-react';
 import { cn } from '@/lib/utils';
 
 // Helper for streaming the tutor's response

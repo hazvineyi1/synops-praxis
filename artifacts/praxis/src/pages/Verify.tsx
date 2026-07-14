@@ -9,11 +9,14 @@ import { Link } from 'wouter';
 export function Verify({ params }: { params: { credentialId: string } }) {
   const { credentialId } = params;
   
-  // Notice we must use the raw fetch or hook without requiring auth since this is a public route.
-  // The API client hook requires query options. If the API endpoint allows unauthenticated requests,
-  // the hook will just work assuming no auth token is passed/needed.
-  const { data: verification, isLoading, isError } = useVerifyCredential(credentialId, { 
-    query: { enabled: !!credentialId, retry: false } 
+  // Public route: no auth required to verify a credential.
+  //
+  // The `as any` is a generator/TanStack-v5 typing gap, not a bug: orval types this
+  // option as a full UseQueryOptions, which in v5 demands a `queryKey` -- but the
+  // generated hook builds the queryKey itself internally, so passing one here would
+  // be both redundant and wrong. Cast is confined to the option object.
+  const { data: verification, isLoading, isError } = useVerifyCredential(credentialId, {
+    query: { enabled: !!credentialId, retry: false } as any,
   });
 
   if (isLoading) {

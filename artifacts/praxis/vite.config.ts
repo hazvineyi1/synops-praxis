@@ -5,27 +5,23 @@ import { defineConfig } from 'vite';
 
 import runtimeErrorOverlay from '@replit/vite-plugin-runtime-error-modal';
 
-const rawPort = process.env.PORT;
-
-if (!rawPort) {
-  throw new Error(
-    'PORT environment variable is required but was not provided.',
-  );
-}
-
+// Local-dev friendly defaults. Production/Replit always set PORT and BASE_PATH, so
+// this changes nothing there -- it just means you don't have to export two env vars in
+// every terminal simply to open the UI.
+const rawPort = process.env.PORT ?? '5173';
 const port = Number(rawPort);
-
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-const basePath = process.env.BASE_PATH;
+// '/' for standalone local dev; '/praxis/' when mounted in the Synops monorepo.
+const basePath = process.env.BASE_PATH ?? '/';
 
-if (!basePath) {
-  throw new Error(
-    'BASE_PATH environment variable is required but was not provided.',
-  );
-}
+// Where the API server is running in dev. The frontend calls same-origin `/api/*`, so
+// without this proxy those requests hit Vite's own port and 404 -- the api-server does
+// not serve the SPA in dev, and there was no proxy. Set API_PORT if you run it
+// somewhere other than 3001.
+const apiPort = process.env.API_PORT ?? '3001';
 
 export default defineConfig({
   base: basePath,
@@ -71,6 +67,12 @@ export default defineConfig({
     allowedHosts: true,
     fs: {
       strict: true,
+    },
+    proxy: {
+      '/api': {
+        target: `http://localhost:${apiPort}`,
+        changeOrigin: true,
+      },
     },
   },
   preview: {

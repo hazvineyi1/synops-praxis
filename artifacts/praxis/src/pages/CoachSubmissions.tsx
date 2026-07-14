@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { FileCheck, CheckCircle2, Clock } from 'lucide-react';
-import { SubmissionReviewStatus } from '@workspace/api-client-react/src/generated/api.schemas';
+import { SubmissionReviewStatus } from '@workspace/api-client-react';
 
 export function CoachSubmissions() {
   const { data: submissions, isLoading, refetch } = useListSubmissions();
@@ -20,8 +20,11 @@ export function CoachSubmissions() {
   const handleReview = (status: SubmissionReviewStatus) => {
     if (!selectedSubmission) return;
     
+    // submissionId is a PATH param, not part of the body. It was being passed inside
+    // `data`, so the top-level submissionId was undefined and every review request went
+    // to /coach/submissions/undefined -- coaches could never actually grade anything.
     reviewMutation.mutate(
-      { data: { submissionId: selectedSubmission.id, status, feedback } },
+      { submissionId: selectedSubmission.id, data: { status, feedback } },
       {
         onSuccess: () => {
           toast({ title: "Review submitted" });

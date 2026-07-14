@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
-import { useGetMe } from '@workspace/api-client-react';
-import { useClerk } from '@clerk/react';
 import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { useDevSession } from '@/context/DevSessionContext';
+import { useSession } from '@/context/SessionContext';
 import { DevRoleSwitcher } from '@/components/DevRoleSwitcher';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import {
@@ -28,15 +26,12 @@ import { Button } from '@/components/ui/button';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
-  const { data: user, isLoading } = useGetMe();
-  const { signOut } = useClerk();
-  const { isDevSession, clearDevSession } = useDevSession();
+  const { user, loading, signOut } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [location] = useLocation();
 
   const handleSignOut = () => {
-    if (isDevSession) clearDevSession();
-    else signOut({ redirectUrl: '/' });
+    void signOut();
   };
 
   const { data: notifCount } = useQuery({
@@ -47,7 +42,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   });
   const unreadCount = notifCount?.count ?? 0;
 
-  if (isLoading || !user) {
+  if (loading || !user) {
     return (
       <div className="flex min-h-screen bg-background items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
@@ -110,6 +105,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-[100dvh] bg-background">
+
+      {/* Impersonation banner. When a super_admin is viewing the app AS another user,
+          this must be impossible to miss -- it is the difference between "support is
+          looking at my account" and a silent account takeover. Fixed to the top,
+          full width, above everything. */}
+      {user.impersonating && (
+        <div className="fixed inset-x-0 top-0 z-[60] bg-amber-500 text-amber-950 text-sm font-medium px-4 py-2 flex items-center justify-center gap-3 shadow-md">
+          <span>
+            Viewing as <strong>{user.firstName ? `${user.firstName} ${user.lastName ?? ''}`.trim() : user.email}</strong> ({user.role.replace('_', ' ')})
+          </span>
+          <button
+            onClick={handleSignOut}
+            className="rounded-full bg-amber-950/15 hover:bg-amber-950/25 px-3 py-0.5 text-xs font-semibold transition-colors"
+          >
+            Stop impersonating
+          </button>
+        </div>
+      )}
 
       {/* ── Desktop sidebar ─────────────────────────────────── */}
       <aside className="w-64 border-r border-border bg-card flex-shrink-0 flex-col hidden md:flex">

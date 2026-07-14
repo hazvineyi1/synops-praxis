@@ -418,9 +418,20 @@ export interface ScriptDraftUpdate {
   beats?: BeatUpdate[];
 }
 
+export type PublishDraftInputLessonType = typeof PublishDraftInputLessonType[keyof typeof PublishDraftInputLessonType];
+
+
+export const PublishDraftInputLessonType = {
+  socratic: 'socratic',
+  video: 'video',
+  slides: 'slides',
+  quiz: 'quiz',
+} as const;
+
 export interface PublishDraftInput {
   courseId: string;
   moduleTitle?: string;
+  lessonType?: PublishDraftInputLessonType;
 }
 
 export type LearningSessionStatus = typeof LearningSessionStatus[keyof typeof LearningSessionStatus];
