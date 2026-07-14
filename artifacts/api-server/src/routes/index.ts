@@ -28,6 +28,7 @@ import notificationsRouter from "./notifications";
 import interactiveVideoRouter from "./interactive_video";
 import learnRouter from "./learn";
 import progressRouter from "./progress";
+import activitiesRouter from "./activities";
 import whatsappRouter from "./whatsapp";
 import devRouter from "./dev";
 
@@ -62,6 +63,7 @@ router.use(notificationsRouter);
 router.use(interactiveVideoRouter);
 router.use(learnRouter);
 router.use(progressRouter);
+router.use(activitiesRouter);
 router.use(whatsappRouter);
 router.use(devRouter);
 

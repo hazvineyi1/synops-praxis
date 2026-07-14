@@ -54,6 +54,8 @@ Thumbs.db
 .praxis-db-ready
 .praxis-commit-log.txt
 .praxis-commit-result.txt
+.praxis-migrate-log.txt
+apply-migration.cjs
 _tmp_*
 typecheck.txt
 codegen.txt
@@ -64,8 +66,11 @@ seed.txt
 praxis-api.ps1
 praxis-web.ps1
 commit-praxis.ps1
+push-db.ps1
 commit-message.txt
 START-API.bat
 START-WEB.bat
 COMMIT-PRAXIS.bat
 COMMIT-NOW.bat
+PUSH-DB.bat
+APPLY-MIGRATION.bat

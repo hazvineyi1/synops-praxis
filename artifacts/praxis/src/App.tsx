@@ -35,6 +35,8 @@ import { SignInPage } from '@/pages/SignIn';
 import { ForgotPasswordPage } from '@/pages/ForgotPassword';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
 import { PlatformConsole } from '@/pages/PlatformConsole';
+import { ActivitiesAdmin } from '@/pages/ActivitiesAdmin';
+import { ActivityPlay } from '@/pages/ActivityPlay';
 
 // Layout
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -149,6 +151,7 @@ function Routes() {
 
         {/* Full-screen focus routes */}
         <FocusRoute path="/learn/:sessionId" component={LearnSession} />
+        <FocusRoute path="/activities/:activityId/play" component={ActivityPlay} />
 
         {/* App layout routes */}
         <ProtectedRoute path="/dashboard" component={Dashboard} />
@@ -175,6 +178,7 @@ function Routes() {
         <ProtectedRoute path="/coach" component={CoachLearners} />
         <ProtectedRoute path="/org/members" component={OrgMembers} />
         <ProtectedRoute path="/admin/partners" component={AdminPartners} />
+        <ProtectedRoute path="/activities" component={ActivitiesAdmin} />
         <ProtectedRoute path="/platform" component={PlatformConsole} />
         <ProtectedRoute path="/partner/theme" component={PartnerTheme} />
         <ProtectedRoute path="/reports" component={Reports} />

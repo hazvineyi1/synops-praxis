@@ -21,6 +21,7 @@ import {
   X,
   UserCog,
   ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       items.push({ label: t('nav.overview'),    href: '/dashboard',         icon: LayoutDashboard });
       items.push({ label: t('nav.learners'),    href: '/coach',             icon: Users });
       items.push({ label: t('nav.submissions'), href: '/coach/submissions', icon: FileText });
+      items.push({ label: t('nav.activities', 'Activities'), href: '/activities', icon: Sparkles });
     }
 
     if (role === 'org_admin') {
@@ -84,11 +86,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       items.push({ label: t('nav.organisations'), href: '/dashboard',     icon: Building });
       items.push({ label: t('nav.courseCatalog'), href: '/courses',       icon: BookOpen });
       items.push({ label: t('nav.studio'),        href: '/studio',        icon: PenTool });
+      items.push({ label: t('nav.activities', 'Activities'), href: '/activities', icon: Sparkles });
     }
 
     if (role === 'super_admin') {
       items.push({ label: t('nav.overview'),         href: '/dashboard',      icon: LayoutDashboard });
       items.push({ label: t('nav.partners'),         href: '/admin/partners', icon: Building });
+      items.push({ label: t('nav.activities', 'Activities'), href: '/activities', icon: Sparkles });
       items.push({ label: t('nav.platformConsole', 'Platform'), href: '/platform', icon: ShieldCheck });
       items.push({ label: t('nav.platformSettings'), href: '/partner/theme',  icon: Settings });
     }
