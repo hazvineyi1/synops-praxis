@@ -34,6 +34,7 @@ import { OrgMembers } from '@/pages/OrgMembers';
 import { SignInPage } from '@/pages/SignIn';
 import { ForgotPasswordPage } from '@/pages/ForgotPassword';
 import { ResetPasswordPage } from '@/pages/ResetPassword';
+import { PlatformConsole } from '@/pages/PlatformConsole';
 
 // Layout
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -174,6 +175,7 @@ function Routes() {
         <ProtectedRoute path="/coach" component={CoachLearners} />
         <ProtectedRoute path="/org/members" component={OrgMembers} />
         <ProtectedRoute path="/admin/partners" component={AdminPartners} />
+        <ProtectedRoute path="/platform" component={PlatformConsole} />
         <ProtectedRoute path="/partner/theme" component={PartnerTheme} />
         <ProtectedRoute path="/reports" component={Reports} />
 

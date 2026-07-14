@@ -20,6 +20,7 @@ import {
   Menu,
   X,
   UserCog,
+  ShieldCheck,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     if (role === 'super_admin') {
       items.push({ label: t('nav.overview'),         href: '/dashboard',      icon: LayoutDashboard });
       items.push({ label: t('nav.partners'),         href: '/admin/partners', icon: Building });
+      items.push({ label: t('nav.platformConsole', 'Platform'), href: '/platform', icon: ShieldCheck });
       items.push({ label: t('nav.platformSettings'), href: '/partner/theme',  icon: Settings });
     }
 
